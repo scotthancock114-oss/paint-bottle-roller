@@ -34,6 +34,10 @@ firmware/
   platformio.ini            PlatformIO build (env esp32dev)
   PaintRoller/
     PaintRoller.ino         ESP32 firmware (FastAccelStepper, TMCStepper, U8g2, optional Wi-Fi page)
+cad/
+  paint_roller.scad         Parametric OpenSCAD model of every printed part
+  assembly.scad             Full stack for checking fits (1-3 levels, any crank angle)
+  stl/                      STLs in print orientation (see cad/README.md for the print list)
 render/
   paint-roller-3d.html      Interactive three.js concept model (open in a browser; 1/2/3 levels, views, motion)
   render-*.png              Stills of the 1, 2 and 3 level stacks
