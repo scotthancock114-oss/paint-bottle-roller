@@ -1,0 +1,394 @@
+<title>Paint Bottle Roller v1</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: title + spec strip, one large 3D viewport, controls under it, then a parts key. */
+  :root {
+    --bg: #eef0ee;
+    --panel: #ffffff;
+    --fg: #1d2421;
+    --muted: #5d6a64;
+    --line: #d3d9d5;
+    --accent: #d2652b;
+    --stage-a: #f7f8f6;
+    --stage-b: #dfe4e0;
+    --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+    --body: "Inter", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151a18; --panel: #1d2421; --fg: #e7ece9; --muted: #9aa8a1; --line: #2f3833;
+      --accent: #ec8550; --stage-a: #26302c; --stage-b: #121614; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151a18; --panel: #1d2421; --fg: #e7ece9; --muted: #9aa8a1; --line: #2f3833;
+    --accent: #ec8550; --stage-a: #26302c; --stage-b: #121614; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.5;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 24px 40px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+  h1 { font-family: var(--display); font-weight: 700; font-size: clamp(1.5rem, 3vw, 2rem); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+  .specs { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--mono); font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .specs b { color: var(--fg); font-weight: 500; }
+  .stage {
+    position: relative; width: 100%; aspect-ratio: 16 / 10; max-width: 100%; min-height: 320px;
+    border-radius: 10px; overflow: hidden; border: 1px solid var(--line);
+    background: radial-gradient(ellipse at 50% 35%, var(--stage-a), var(--stage-b));
+  }
+  .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .hint { position: absolute; left: 12px; bottom: 10px; font-size: 0.75rem; color: var(--muted); pointer-events: none; }
+  .tilt { position: absolute; right: 12px; top: 10px; font-family: var(--mono); font-size: 0.8rem; color: var(--fg);
+          background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-variant-numeric: tabular-nums; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    font: 500 0.85rem var(--body); color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 12px; cursor: pointer;
+  }
+  button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sep { width: 1px; background: var(--line); margin: 0 4px; }
+  .key { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px 24px; margin: 0; padding: 0; list-style: none; font-size: 0.875rem; }
+  .key li { display: flex; gap: 10px; align-items: baseline; min-width: 0; }
+  .sw { flex: none; width: 11px; height: 11px; border-radius: 2px; transform: translateY(1px); border: 1px solid var(--line); }
+  .key span { color: var(--muted); }
+  .note { font-size: 0.8rem; color: var(--muted); max-width: 70ch; margin: 0; }
+  @media (max-width: 520px) { .stage { aspect-ratio: 4 / 5; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Paint Bottle Roller v1</h1>
+    <div class="specs">
+      <span><b>260 × 152</b> mm footprint</span>
+      <span id="hgt"><b>183</b> mm tall · <b>12</b> bottles</span>
+      <span><b>20</b> RPM roll</span>
+      <span><b>±19 mm</b> end lift, ±10° rock</span>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <div class="tilt" id="tilt">tilt +0.0°</div>
+    <div class="hint">Drag to orbit · scroll or pinch to zoom</div>
+  </div>
+
+  <div class="controls">
+    <button id="play" aria-pressed="true">Motion on</button>
+    <button id="bottles" aria-pressed="true">Bottles shown</button>
+    <span class="sep" aria-hidden="true"></span>
+    <button data-levels="1">1 level</button>
+    <button data-levels="2" aria-pressed="true">2 levels</button>
+    <button data-levels="3">3 levels</button>
+    <span class="sep" aria-hidden="true"></span>
+    <button data-view="iso">3/4 view</button>
+    <button data-view="front">Front</button>
+    <button data-view="end">Cap end</button>
+    <button data-view="back">Drive side</button>
+  </div>
+
+  <ul class="key">
+    <li><i class="sw" style="background:#4a524f"></i><div>Base, corner rails, lid <span>fixed; shown see-through so the drive is visible</span></div></li>
+    <li><i class="sw" style="background:#a7b6ae"></i><div>Level modules <span>90 mm each (up to 3), 6 bottles, carried at all four corners; about 49 mm of hand room above the bottles</span></div></li>
+    <li><i class="sw" style="background:#3d7f9e"></i><div>End lifters <span>4 bars, one segment per level; the two ends rise and fall in opposition</span></div></li>
+    <li><i class="sw" style="background:#2a2d2c"></i><div>Rollers <span>4 per deck along the bottles, 29 mm pitch</span></div></li>
+    <li><i class="sw" style="background:#c0392b"></i><div>One roll motor on level 1 <span>spare Ender 3 NEMA 17; GT2 220 belts carry drive up; O-rings link each level&#39;s rollers</span></div></li>
+    <li><i class="sw" style="background:#d2652b"></i><div>Bumpers + cranks <span>open front and cap end for loading by hand; one rock motor, two cranks 180° apart</span></div></li>
+  </ul>
+  <p class="note">Concept model built from the design dimensions, not from CAD. Motion is sped up and simplified. There is no centre pivot: each deck hangs from lifter bars at both ends, and one crankshaft in the base raises one end while it lowers the other. Every level rides the same bars, so each gets the same end lift and angle, and the rock clearance is needed only below the first level and under the lid. The front of each level is open with only a low lip, so you reach in from the front or the cap end and lift bottles straight out.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function () {
+  const stage = document.getElementById('stage');
+  const tiltEl = document.getElementById('tilt');
+  const hgtEl = document.getElementById('hgt');
+  const deg = Math.PI / 180;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  stage.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(32, 1.6, 5, 5000);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.minDistance = 200; controls.maxDistance = 1800;
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x6f7773, 0.6));
+  const key = new THREE.DirectionalLight(0xffffff, 0.7); key.position.set(400, 650, 450); scene.add(key);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.35); rim.position.set(-400, 300, -400); scene.add(rim);
+
+  const M = (color, opts = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.6, metalness: 0.05 }, opts));
+  const mat = {
+    frame: M(0x4a524f), baseGlass: M(0x4a524f, { transparent: true, opacity: 0.35, depthWrite: false }),
+    deck: M(0xa7b6ae), sleeve: M(0x2a2d2c, { roughness: 0.85 }),
+    oring: M(0xc0392b, { roughness: 0.5 }), steel: M(0xb9bec2, { metalness: 0.7, roughness: 0.35 }),
+    motor: M(0x1b1d1e, { roughness: 0.45, metalness: 0.3 }), pcb: M(0x1f6b3a, { roughness: 0.5 }),
+    gate: M(0xd2652b), lift: M(0x3d7f9e, { roughness: 0.4 }), cap: M(0xf4f4f2, { roughness: 0.4 }),
+    label: M(0xf6f3ea, { side: THREE.DoubleSide, roughness: 0.7 }), knob: M(0x2b2f2e, { metalness: 0.3 }),
+    red: M(0xd33f2f), tick: M(0xe8e8e8)
+  };
+
+  // Units mm. three x = bottle axis (caps toward +x), y = up, z = depth (+z = front).
+  function box(w, h, d, m, x, y, z, parent) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); mesh.position.set(x, y, z); parent.add(mesh); return mesh;
+  }
+  function cylX(r0, r1, x0, x1, m, parent, y = 0, z = 0, seg = 32, open = false, t0 = 0, tl = Math.PI * 2) {
+    const g = new THREE.CylinderGeometry(r1, r0, x1 - x0, seg, 1, open, t0, tl); g.rotateZ(-Math.PI / 2);
+    const mesh = new THREE.Mesh(g, m); mesh.position.set((x0 + x1) / 2, y, z); parent.add(mesh); return mesh;
+  }
+  function cylZ(r, z0, z1, m, parent, x = 0, y = 0, seg = 32) {
+    const g = new THREE.CylinderGeometry(r, r, z1 - z0, seg); g.rotateX(Math.PI / 2);
+    const mesh = new THREE.Mesh(g, m); mesh.position.set(x, y, (z0 + z1) / 2); parent.add(mesh); return mesh;
+  }
+
+  // ---------- dimensions ----------
+  const BASE_H = 55, SWING = 20, PITCH = 90, LID = 6;   // 90 mm pitch leaves ~49 mm of hand room above each bottle
+  const FIRST_PIN = BASE_H + SWING + 13;     // deck pin height of level 1 at rest (= roller axis)
+  const LX = 110;                            // lifters sit at x = ±110 (220 mm apart)
+  const LZ = 62, RZ = 70;                    // lifter bars at z = ±62, fixed guide rails at z = ±70
+  const LIFT = 19;                           // each end moves ±19 mm -> about ±10° tilt
+  const BIAS = 5.8;                          // +X (cap) end sits 5.8 mm higher, -X end 5.8 lower -> +3° caps up
+  const ROLLER_Z = [-43.5, -14.5, 14.5, 43.5];
+  const VALLEY_Z = [-29, 0, 29];
+  const paints = [0x8b1e2d, 0x1f4e8c, 0x2e6b3a, 0xd9a521, 0x5b3a29, 0x6c2f7a, 0xc75b1c, 0x2c2c2c,
+                  0xb3b8bc, 0x0f6b74, 0xa83a5c, 0x8a9a3b, 0xe2d5b8, 0x3a3f8f, 0x9c2a1a, 0x4a6b52,
+                  0xd88a3a, 0x24364f, 0x7a1f1f, 0x6e8fae, 0xbfa36a, 0x3f2b4f, 0x5d7a2a, 0xe0e0dc];
+
+  // ---------- fixed base (shown see-through so the lifter drive is visible) ----------
+  const world = new THREE.Group(); scene.add(world);
+  const baseBox = box(260, BASE_H, 152, mat.baseGlass, -5, BASE_H / 2, 0, world); baseBox.renderOrder = 5;
+  box(260, 3, 152, mat.frame, -5, 1.5, 0, world);                                      // base floor
+  [-1, 1].forEach(sx => [-1, 1].forEach(sz => cylZ(6, -4, 0, M(0x333333), world, 0, 2, 16).position.set(-5 + sx * 112, 2, sz * 64)));
+  const oc = document.createElement('canvas'); oc.width = 256; oc.height = 128;
+  const ox = oc.getContext('2d');
+  ox.fillStyle = '#05080d'; ox.fillRect(0, 0, 256, 128);
+  ox.fillStyle = '#8fd8ff'; ox.font = 'bold 30px monospace'; ox.fillText('MIXING', 12, 40);
+  ox.font = '22px monospace'; ox.fillText('Forward 1:42', 12, 76); ox.fillText('rock 20s', 12, 108);
+  const oledTex = new THREE.CanvasTexture(oc);
+  box(40, 24, 3, M(0x05080d, { map: oledTex, emissive: 0xffffff, emissiveMap: oledTex, emissiveIntensity: 0.6 }), -70, 30, 76.5, world);
+  cylZ(7, 76, 87, mat.knob, world, -20, 30, 24);
+  cylZ(6, 76, 80, mat.gate, world, 15, 30, 24);
+  const sc = document.createElement('canvas'); sc.width = sc.height = 128;
+  const sx = sc.getContext('2d'); const gr = sx.createRadialGradient(64, 64, 8, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(0,0,0,0.35)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); sx.fillStyle = gr; sx.fillRect(0, 0, 128, 128);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(480, 340), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false }));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.set(-5, -3.9, 0); world.add(shadow);
+
+  // lifter drive inside the base: one motor, one crankshaft along x, two cranks 180° apart
+  const SHAFT_Y = 26, SHAFT_Z = -20;
+  // rock motor beside the shaft, 20T:60T GT2 reduction to the crankshaft
+  box(40, 42, 42, mat.motor, 60, SHAFT_Y, SHAFT_Z + 46, world);
+  cylX(6.4, 6.4, 34, 40, mat.steel, world, SHAFT_Y, SHAFT_Z + 46, 20);
+  cylX(19, 19, 34, 40, mat.steel, world, SHAFT_Y, SHAFT_Z, 32);
+  [-1, 1].forEach(s => { const m = box(6, 1.4, 46, M(0x111111), 37, SHAFT_Y + s * 13, SHAFT_Z + 23, world); m.rotation.x = s * Math.atan2(12.6, 46); });
+  cylX(4, 4, -LX - 8, LX + 8, mat.steel, world, SHAFT_Y, SHAFT_Z, 16);
+  const cranks = [-1, 1].map(s => {
+    const g = new THREE.Group(); g.position.set(s * LX, SHAFT_Y, SHAFT_Z); world.add(g);
+    cylX(23, 23, -3, 3, mat.gate, g, 0, 0, 32);
+    return g;
+  });
+  const rods = [-1, 1].map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 1, 12), mat.lift); world.add(m); return m; });
+  const yokes = [-1, 1].map(s => box(10, 24, 2 * LZ + 8, mat.lift, s * LX, 0, 0, world));
+  box(6, 6, 10, mat.red, -LX + 20, SHAFT_Y - 20, SHAFT_Z, world);  // home switch on the crank
+
+  // ---------- stack ----------
+  let stack = null, decks = [], rollers = [], bottles = [], liftSegs = [], bottleGroup = null, levels = 2, topY = 0;
+  let showBottles = true;
+
+  function buildLevel(i, parentStack) {
+    const py = FIRST_PIN + i * PITCH;
+    // fixed guide-rail segments at the four corners
+    [-1, 1].forEach(sx => [-1, 1].forEach(sz => box(8, PITCH - 1, 8, mat.frame, sx * LX, py + 10, sz * RZ, parentStack)));
+    // this level's lifter segments (posed every frame)
+    [-1, 1].forEach(sx => [-1, 1].forEach(sz => {
+      // each segment runs from just above this level's pin down to the one below (level 1: down to the yoke)
+      const segH = i === 0 ? 27 : PITCH - 1, off = i === 0 ? 1.5 : 15 - (PITCH - 1) / 2;
+      const m = box(8, segH, 6, mat.lift, sx * LX, py + off, sz * LZ, parentStack); m.userData = { sx, sz, i, off }; liftSegs.push(m);
+    }));
+
+    const deck = new THREE.Group(); deck.userData.py = py; parentStack.add(deck); decks.push(deck);
+    box(208, 3, 115, mat.deck, 0, -11.5, 0, deck);                          // floor / drip tray
+    box(208, 20, 4, mat.deck, 0, -3, -55.5, deck);                         // back wall
+    box(208, 8, 4, mat.deck, 0, -9, 55.5, deck);                           // low front lip: reach in from the front
+    box(4, 36, 115, mat.deck, -102, 5, 0, deck);                           // drive-end wall + bottle stop
+    box(4, 18, 115, mat.deck, 102, -4, 0, deck);                           // cap-end wall
+    box(4, 8, 111, mat.gate, 102, 16, 0, deck);                            // cap-end bumper rail
+    box(4, 10, 111, mat.deck, -1, 16, 0, deck);                            // centre stop
+    // corner ears with pins into the lifters (the +x pins ride in short slots)
+    [-1, 1].forEach(sx => [-1, 1].forEach(sz => {
+      box(10, 10, 4, mat.deck, sx * 105, 0, sz * 55.5, deck);
+      cylZ(2.5, sz > 0 ? 57.5 : -LZ - 3, sz > 0 ? LZ + 3 : -57.5, mat.steel, deck, sx * LX, 0, 12);
+    }));
+
+    ROLLER_Z.forEach((z, k) => {
+      const g = new THREE.Group(); g.position.set(0, 0, z); deck.add(g);
+      cylX(2.5, 2.5, k === 1 ? -127 : -108, 106, mat.steel, g, 0, 0, 12);
+      cylX(8, 8, -99, 99, mat.sleeve, g, 0, 0, 28);
+      box(80, 1.2, 1.2, mat.tick, -40, 8.1, 0, g);
+      box(80, 1.2, 1.2, mat.tick, 50, 8.1, 0, g);
+      rollers.push(g);
+    });
+    // GT2 20T pulleys on roller 2: V1 and V2 planes carry the drive up to the next level
+    cylX(6.8, 6.8, -119, -113, mat.steel, deck, 0, -14.5, 24);
+    cylX(6.8, 6.8, -126, -120, mat.steel, deck, 0, -14.5, 24);
+    if (i === 0) {
+      // the single roll motor (spare Ender 3 NEMA 17, 40 mm body) rides on level 1, coupled to roller 2 behind its pulleys
+      box(40, 42, 42, mat.motor, -152, 0, -14.5, deck);
+      box(4, 42.5, 42.5, mat.steel, -130, 0, -14.5, deck);
+    }
+    [[0, 1, -105.5], [1, 2, -108.5], [2, 3, -105.5]].forEach(([a, b, x]) => {
+      [ROLLER_Z[a], ROLLER_Z[b]].forEach(z => {
+        const tor = new THREE.Mesh(new THREE.TorusGeometry(8.5, 1.4, 8, 28), mat.oring);
+        tor.rotation.y = Math.PI / 2; tor.position.set(x, 0, z); deck.add(tor);
+      });
+      [-8.5, 8.5].forEach(dy => cylZ(1.4, ROLLER_Z[a], ROLLER_Z[b], mat.oring, deck, x, dy, 8));
+    });
+    const bdeck = new THREE.Group(); bottleGroup.add(bdeck); bdeck.userData.deck = deck;
+    VALLEY_Z.forEach((z, v) => [-97, 3].forEach((x0, k) => {
+      const b = new THREE.Group(); b.position.set(x0, 15.2, z); bdeck.add(b);
+      const paint = M(paints[(i * 6 + v * 2 + k) % 24], { roughness: 0.35 });
+      cylX(13, 13, 0, 70, paint, b, 0, 0, 40);
+      cylX(13.25, 13.25, 8, 56, mat.label, b, 0, 0, 40, true, 0.6, 4.6);
+      cylX(13, 9, 70, 76, paint, b, 0, 0, 40);
+      cylX(8.5, 8.5, 76, 86, mat.cap, b, 0, 0, 32);
+      cylX(8.5, 2.2, 86, 92, mat.cap, b, 0, 0, 32);
+      bottles.push(b);
+    }));
+  }
+
+  let belts = [];
+  function build(n) {
+    belts.forEach(b => b.forEach(m => world.remove(m)));
+    belts = [];
+    for (let i = 0; i < n - 1; i++) belts.push([0, 1].map(() => { const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), M(0x111111, { roughness: 0.9 })); world.add(m); return m; }));
+    if (stack) world.remove(stack);
+    stack = new THREE.Group(); world.add(stack);
+    decks = []; rollers = []; bottles = []; liftSegs = [];
+    bottleGroup = new THREE.Group(); bottleGroup.visible = showBottles; stack.add(bottleGroup);
+    // rail stubs from the base top to level 1
+    [-1, 1].forEach(sx => [-1, 1].forEach(sz => box(8, FIRST_PIN - 14 - BASE_H, 8, mat.frame, sx * LX, (BASE_H + FIRST_PIN - 14) / 2, sz * RZ, stack)));
+    for (let i = 0; i < n; i++) buildLevel(i, stack);
+    const topPin = FIRST_PIN + (n - 1) * PITCH;
+    topY = topPin + 35 + SWING;
+    // rail tops + lid frame
+    [-1, 1].forEach(sx => [-1, 1].forEach(sz => box(8, topY - (topPin + 33.5), 8, mat.frame, sx * LX, (topY + topPin + 33.5) / 2, sz * RZ, stack)));
+    [-1, 1].forEach(sz => box(2 * LX + 8, LID, 8, mat.frame, 0, topY + LID / 2, sz * RZ, stack));
+    [-1, 1].forEach(sx => box(8, LID, 2 * RZ + 8, mat.frame, sx * LX, topY + LID / 2, 0, stack));
+    const h = Math.round(topY + LID);
+    hgtEl.innerHTML = '<b>' + h + '</b> mm tall · <b>' + (n * 6) + '</b> bottles';
+    levels = n;
+    document.querySelectorAll('[data-levels]').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.levels) === n)));
+    target.set(-5, Math.max(100, h * 0.5), 0);
+    controls.target.copy(target);
+  }
+
+  // ---------- views ----------
+  const target = new THREE.Vector3(-5, 100, 0);
+  const views = {
+    iso:   new THREE.Vector3(360, 250, 440),
+    front: new THREE.Vector3(-5, 140, 700),
+    end:   new THREE.Vector3(-660, 140, 60),
+    back:  new THREE.Vector3(-400, 240, -400)
+  };
+  let currentView = 'iso';
+  function setView(name) {
+    currentView = name;
+    const k = Math.max(1, target.y / 115);   // back off for taller stacks
+    const v = views[name].clone().multiplyScalar(k); v.y += target.y - 100 * k;
+    camera.position.copy(v); controls.target.copy(target); controls.update();
+  }
+  function resize() { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+  window.addEventListener('resize', resize); resize();
+  build(2); setView('iso');
+
+  // ---------- motion ----------
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let playing = !reduce, phi = 1.3, rollAngle = 0, last = performance.now();
+  const ROCK_PERIOD = 8, ROLLER_RPM = 32.5 / 3;
+
+  function stretch(mesh, a, b) {
+    mesh.position.copy(a).add(b).multiplyScalar(0.5);
+    mesh.scale.set(1, a.distanceTo(b), 1);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+  }
+
+  function pose() {
+    // the two ends move in opposition: cap end up while drive end goes down, and back again
+    const hR = BIAS + LIFT * Math.sin(phi);      // +x (cap) end
+    const hL = -BIAS - LIFT * Math.sin(phi);     // -x (drive) end
+    const tilt = Math.asin((hR - hL) / (2 * LX));
+    decks.forEach(dk => {
+      dk.position.set(0, dk.userData.py + (hL + hR) / 2, 0);
+      dk.rotation.z = tilt;
+    });
+    bottleGroup.children.forEach(g => { const dk = g.userData.deck; g.position.copy(dk.position); g.rotation.copy(dk.rotation); });
+    liftSegs.forEach(m => {
+      const { sx, i, off } = m.userData;
+      m.position.y = FIRST_PIN + i * PITCH + (sx > 0 ? hR : hL) + off;
+    });
+    // yokes, crank pins and rods
+    [-1, 1].forEach((s, k) => {
+      const hEnd = s > 0 ? hR : hL;
+      const yokeY = FIRST_PIN + hEnd - 24;
+      yokes[k].position.y = yokeY;
+      const a = (s > 0 ? phi : phi + Math.PI);
+      cranks[k].rotation.x = -a;
+      const pin = new THREE.Vector3(s * LX + s * 5, SHAFT_Y + LIFT * Math.sin(a), SHAFT_Z + LIFT * Math.cos(a));
+      stretch(rods[k], pin, new THREE.Vector3(s * LX + s * 5, yokeY - 12, SHAFT_Z));
+    });
+    world.updateMatrixWorld(true);
+    belts.forEach((pair, i) => {
+      const xPlane = (i % 2 === 0) ? -116 : -123;
+      const a = decks[i].localToWorld(new THREE.Vector3(xPlane, 0, -14.5));
+      const b = decks[i + 1].localToWorld(new THREE.Vector3(xPlane, 0, -14.5));
+      pair.forEach((m, k) => {
+        m.position.copy(a).add(b).multiplyScalar(0.5); m.position.z += k ? 6.9 : -6.9;
+        m.scale.set(6, b.y - a.y, 1.2);
+      });
+    });
+    tiltEl.textContent = 'every level ' + (tilt >= 0 ? '+' : '−') + Math.abs(tilt / deg).toFixed(1) + '° caps ' + (tilt >= 0 ? 'up' : 'down');
+  }
+
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.1); last = now;
+    if (playing) {
+      phi += dt * 2 * Math.PI / ROCK_PERIOD;
+      const dir = (Math.floor(now / 6000) % 2) ? -1 : 1;
+      rollAngle += dir * dt * ROLLER_RPM * 2 * Math.PI / 60;
+    }
+    rollers.forEach(r => { r.rotation.x = rollAngle; });
+    bottles.forEach(b => { b.rotation.x = -rollAngle * 16 / 26; });
+    pose();
+    controls.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---------- UI ----------
+  const btnPlay = document.getElementById('play');
+  const setPlay = v => { playing = v; btnPlay.setAttribute('aria-pressed', String(v)); btnPlay.textContent = v ? 'Motion on' : 'Motion off'; };
+  setPlay(playing);
+  btnPlay.addEventListener('click', () => setPlay(!playing));
+  const btnB = document.getElementById('bottles');
+  const setBottles = v => {
+    showBottles = v; bottleGroup.visible = v;
+    btnB.setAttribute('aria-pressed', String(v)); btnB.textContent = v ? 'Bottles shown' : 'Bottles hidden';
+  };
+  btnB.addEventListener('click', () => setBottles(!showBottles));
+  document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+  document.querySelectorAll('[data-levels]').forEach(b => b.addEventListener('click', () => { build(Number(b.dataset.levels)); setView(currentView); }));
+  window.__roller = { setView, setPhi: p => { phi = p; }, setPlay, showBottles: setBottles, setLevels: n => { build(n); setView(currentView); } };
+})();
+</script>
