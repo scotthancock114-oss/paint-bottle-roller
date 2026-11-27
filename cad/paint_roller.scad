@@ -1,5 +1,8 @@
 // Paint Bottle Roller v1 - printed parts (parametric OpenSCAD)
 //
+// Designed for FDM: thick solid sections (structural walls 6-8 mm), wide flat
+// faces on the bed, gussets at corners, no thin tabs or tongues, no supports.
+//
 // Every printed part is modelled in its assembled position in one global
 // frame, and print_part() turns it onto the print bed.
 //   X = bottle axis (caps toward +X, drive end at -X)
@@ -38,9 +41,9 @@ seat_d = brg_od + fit_brg;
 bore   = 5 + fit_hole;
 
 // Base
-base_l = 250;  base_w = 152;  base_h = 62;      // fits a 256 mm bed
+base_l = 250;  base_w = 160;  base_h = 62;      // fits a 256 mm bed
 lid_t  = 6;    shell_h = base_h - lid_t;
-wall   = 3;    floor_t = 3;
+wall   = 4;    floor_t = 3;
 hb = base_l/2; wb = base_w/2;
 
 // Rocking crank (one 5 mm shaft along X, two cranks 180 deg apart)
@@ -54,7 +57,7 @@ bias_deg = 3;           // caps-up bias at mid stroke
 // Stack
 lift_x  = 110;          // lifter / rail centre X
 lift_y  = 58;           // lifter inner face |Y|
-lifter_w = 12;  lifter_t = 9.5;
+lifter_w = 14;  lifter_t = 12;
 rock_clear = 32;        // base top to level-1 deck underside at mid stroke
 pitch   = 90;           // level spacing
 seg_pin = 66;           // pin height inside a standard lifter segment
@@ -68,12 +71,13 @@ beam_top = crank_z + beam_h/2;
 L1_len   = pin1 + (90 - seg_pin) - beam_top;   // 102.75 nominal
 rail_L1  = deck_z1 + 72 - base_h;              // 104
 
-// Guard-rail profile
-back_y0 = lift_y + lifter_t + fit_slide;   // 67.8
-back_y1 = back_y0 + 7;                     // 74.8
-fl_in   = lifter_w/2 + fit_slide;          // 6.3
-fl_out  = fl_in + 3;                       // 9.3
-mort_y0 = back_y0 + 2;  mort_y1 = back_y1 - 2;
+// Guard-rail profile: a thick U channel (7 mm flanges, 8 mm back)
+back_y0 = lift_y + lifter_t + fit_slide;   // 70.3
+back_y1 = back_y0 + 8;                     // 78.3
+fl_in   = lifter_w/2 + fit_slide;          // 7.3
+fl_out  = fl_in + 7;                       // 14.3
+tongue  = 10;                              // stacking tongue height
+bolt_y  = (back_y0 + back_y1) / 2;         // cross-bolt line
 
 // Deck (one level)
 hx = 122;  hy = 57.5;          // deck 244 x 115
@@ -83,19 +87,19 @@ roller_d  = 16;                // 12 mm core + silicone sleeve
 roller_ys = [-43.5, -14.5, 14.5, 43.5];   // roller 2 (driven) = -14.5
 end_t     = 8;   x_in = hx - end_t;        // end plates |X| 114..122
 plate_top = 39;
-boss_x0 = 105;  boss_y0 = 49;  boss_z0 = 25;   // pin bosses
+boss_x0 = 105;  boss_y0 = 49;  boss_z0 = 24;   // pin bosses
 back_top = 42;  lip_h = 10;
 bottle_z = roller_z + sqrt(pow((bottle_d + roller_d)/2, 2) - pow(29/2, 2)); // 29.2
-bar_w = 6;  bar_z0 = 24;  bar_z1 = 36;  dome_h = 1.5;  dome_r = 4;
+bar_w = 8;  bar_z0 = 24;  bar_z1 = 36;  dome_h = 1.5;  dome_r = 4;
 valley_ys = [-29, 0, 29];
-drive_bar_x = -92.5;
+drive_bar_x = -91.5;
 cap_stop_x  = x_in - dome_h;                       // 112.5
-centre_bar_x = (drive_bar_x + bar_w/2 + dome_h + cap_stop_x) / 2;   // 12.25
+centre_bar_x = (drive_bar_x + bar_w/2 + dome_h + cap_stop_x) / 2;   // 13.25
 collar_x0 = -x_in + 0.5;                           // -113.5
 core_x0 = -94;  core_x1 = 104;
 pulley_x0 = -hx - 2.5;                             // double pulley starts here
 motor_y  = roller_ys[1] + 59;                      // GT2 158 loop, 20T:20T
-motor_face_x = -153;
+motor_face_x = -155;
 
 // ------------------------------------------------------------------ helpers
 module box(x0, x1, y0, y1, z0, z1)
@@ -150,31 +154,54 @@ module grub_m3(zc, hub_r, from_z) {
 }
 
 // =================================================================== BASE
-lid_screws = [[120,50],[120,-50],[-120,50],[-120,-50],[-60,-69],[0,69]];
+lid_screws = [[121,50],[121,-50],[-121,50],[-121,-50],[-60,-72],[0,72]];
 pcb = [-55, 35, -72, -2];              // 90 x 70 perfboard footprint
 panel = [30, 94, 6, 54];               // front panel X0 X1 Z0 Z1
+panel_t = 4;
 usb_x = -30;                           // USB slot in the front wall
 jack_x = 60;                           // DC jack in the back wall
 rock_motor = [35.5, 26];               // rock motor centre (Y, Z), face at X = -50
 rock_u = [35.5, -9] / norm([35.5, -9]);// belt tension direction
+mplate = [-56, -50];                   // rock motor plate X range (6 mm)
+
+// Right-angle gusset: triangle in the plane spanned by X and Z, thickness in Y.
+// Corner at (x0, z0); legs run dx along X and dz along Z (signs give direction).
+module gusset_xz(x0, z0, dx, dz, y0, y1)
+    translate([0, min(y0,y1), 0]) rotate([90,0,0]) mirror([0,0,1])
+        linear_extrude(abs(y1-y0)) polygon([[x0,z0],[x0+dx,z0],[x0,z0+dz]]);
+// Same in the plane spanned by Y and Z, thickness in X.
+module gusset_yz(y0, z0, dy, dz, x0, x1)
+    translate([min(x0,x1), 0, 0]) rotate([90,0,90])
+        linear_extrude(abs(x1-x0)) polygon([[y0,z0],[y0+dy,z0],[y0,z0+dz]]);
 
 module base_shell() {
     difference() {
         union() {
             difference() {
-                rbox(-hb, hb, -wb, wb, 0, shell_h, 5);
-                box(-hb+wall, hb-wall, -wb+wall, wb-wall, floor_t, shell_h+1);
+                rbox(-hb, hb, -wb, wb, 0, shell_h, 6);
+                rbox(-hb+wall, hb-wall, -wb+wall, wb-wall, floor_t, shell_h+1, 3);
             }
-            for (s = [-1,1]) box(s*(tower_x-4), s*(tower_x+4), -12, 12, 0, crank_z+11);
-            box(-54, -50, 10, wb-wall, 0, 50);                       // rock motor plate
+            // crank towers: 8 mm thick, wide tapered foot
+            for (s = [-1,1]) hull() {
+                box(s*(tower_x-4), s*(tower_x+4), -12, 12, 0, crank_z+11);
+                box(s*(tower_x-4), s*(tower_x+4), -28, 28, 0, 4);
+            }
+            // rock motor plate, 6 mm, with gussets to the floor and back wall
+            box(mplate[0], mplate[1], 10, wb-wall, 0, 50);
+            gusset_xz(mplate[1], floor_t, 12, 12, 8, 14);
+            gusset_xz(mplate[1], floor_t, 30, 40, 60, wb-wall);
+            gusset_xz(mplate[0], floor_t, -12, 40, 60, wb-wall);
             for (x = [pcb[0]+2, pcb[1]-2], y = [pcb[2]+2, pcb[3]-2])
-                zcyl(x, y, 0, floor_t+5, 7);                          // PCB standoffs
+                zcyl(x, y, 0, floor_t+5, 8);                          // PCB standoffs
             for (x = [panel[0], panel[1]-6])
-                box(x, x+6, -wb+wall, -wb+wall+5, 0, shell_h);        // panel pillars
-            box(86, 89, 30, 44, 0, 48);                               // endstop post
+                box(x, x+6, -wb+wall-0.5, -wb+wall+6, 0, shell_h);    // panel pillars
+            hull() {                                                  // endstop post
+                box(83, 89, 30, 44, 0, 48);
+                box(83, 89, 26, 48, 0, 4);
+            }
             for (p = lid_screws)
                 intersection() {
-                    box(p[0]-3, p[0]+3, p[1]-4, p[1]+4, 0, shell_h);
+                    box(p[0]-3.5, p[0]+3.5, p[1]-4, p[1]+4, 0, shell_h);
                     box(-hb+1, hb-1, -wb+1, wb-1, 0, shell_h);
                 }
         }
@@ -183,77 +210,83 @@ module base_shell() {
             xcyl(s*(tower_x+4.1), s*(tower_x+4-brg_w-0.2), 0, crank_z, seat_d); // seat, arm side
         }
         // rock motor: centre slot and four slotted screw holes (belt tension)
-        hull() for (d = [-3,3]) xcyl(-56, -48, rock_motor[0]+d*rock_u[0], rock_motor[1]+d*rock_u[1], 23);
+        hull() for (d = [-3,3]) xcyl(mplate[0]-1, mplate[1]+1, rock_motor[0]+d*rock_u[0], rock_motor[1]+d*rock_u[1], 23);
         for (a = [-1,1], b = [-1,1])
             hull() for (d = [-3,3])
-                xcyl(-56, -48, rock_motor[0]+a*15.5+d*rock_u[0], rock_motor[1]+b*15.5+d*rock_u[1], m3_clr, 24);
+                xcyl(mplate[0]-1, mplate[1]+1, rock_motor[0]+a*15.5+d*rock_u[0], rock_motor[1]+b*15.5+d*rock_u[1], m3_clr, 24);
         for (x = [pcb[0]+2, pcb[1]-2], y = [pcb[2]+2, pcb[3]-2]) zcyl(x, y, 1, 20, m3_tap, 24);
         // front panel opening and screw holes
         box(panel[0]+6, panel[1]-6, -wb-1, -wb+wall+1, panel[2]+6, panel[3]-6);
         for (x = [panel[0]+3, panel[1]-3], z = [panel[2]+3, panel[3]-3])
-            ycyl(x, -wb-1, -wb+wall+5-1, z, m3_tap, 24);
+            ycyl(x, -wb-1, -wb+wall+6-1, z, m3_tap, 24);
         box(usb_x-6, usb_x+6, -wb-1, -wb+wall+1, 8, 16);            // USB
         ycyl(jack_x, wb-wall-1, wb+1, 22, 11.2);                     // DC jack
-        for (z = [34, 42]) hull() for (y = [32, 42]) xcyl(85, 90, y, z, 3.2, 24); // endstop slots
-        for (p = lid_screws) zcyl(p[0], p[1], shell_h-12, shell_h+1, m3_tap, 24);
+        for (z = [34, 42]) hull() for (y = [32, 42]) xcyl(82, 90, y, z, 3.2, 24); // endstop slots
+        for (p = lid_screws) zcyl(p[0], p[1], shell_h-14, shell_h+1, m3_tap, 24);
     }
 }
+
+// Stacking tongue (on top of the base lid and of every rail) and its cross bolt.
+module tongue_block(z0)
+    box(lift_x-fl_in+0.3, lift_x+fl_in-0.3, back_y0+0.3, back_y1, z0, z0+tongue);
+module cross_bolt(z)                       // M3 x 30 along X through rail, tongue, rail
+    xcyl(lift_x-fl_out-1, lift_x+fl_out+1, bolt_y, z, m3_clr, 24);
 
 module base_lid() {
     difference() {
         union() {
-            rbox(-hb, hb, -wb, wb, shell_h, base_h, 5);
-            for (sx = [-1,1], sy = [-1,1])                            // rail tenons
-                box(sx*(lift_x-6), sx*(lift_x+6), sy*(mort_y0+0.2), sy*(mort_y1-0.2), base_h-1, base_h+10);
+            rbox(-hb, hb, -wb, wb, shell_h, base_h, 6);
+            for (mx = [0,1], my = [0,1]) mirror([mx,0,0]) mirror([0,my,0]) tongue_block(base_h-1);
         }
         for (s = [-1,1]) {
-            box(s*87, s*101.75, -36, 36, shell_h-1, base_h+1);                    // crank arm + flag
-            box(s*101.75, s*(lift_x+6.25), -36, 36, shell_h-1, base_h+1);         // yoke beam
-            box(s*(lift_x-6.25), s*(lift_x+6.25), -67.7, 67.7, shell_h-1, base_h+1); // lifters
+            box(s*87, s*101.75, -36, 36, shell_h-1, base_h+1);                         // crank arm + flag
+            box(s*101.75, s*(lift_x+7.25), -36, 36, shell_h-1, base_h+1);              // yoke beam
+            box(s*(lift_x-7.25), s*(lift_x+7.25), -(lift_y+lifter_t+0.2), lift_y+lifter_t+0.2,
+                shell_h-1, base_h+1);                                                  // lifters
         }
-        box(-80, -58, -22, 22, shell_h-1, shell_h+2);                // 60T pulley pocket
+        box(-82, -58, -22, 22, shell_h-1, shell_h+2);                // 60T pulley pocket
         zcyl(-85, -50, shell_h-1, base_h+1, 12);                     // roll motor cable
         for (p = lid_screws) {
             zcyl(p[0], p[1], shell_h-1, base_h+1, m3_clr, 24);
             translate([p[0], p[1], base_h-1.8]) cylinder(d1=m3_clr, d2=6.6, h=1.81, $fn=24);
         }
-        for (sx = [-1,1], sy = [-1,1]) {                             // tenon cross holes
-            ycyl(sx*lift_x, sy*(mort_y0-0.5), sy*(mort_y1+1), base_h+5, m3_tap, 24);
-        }
+        for (mx = [0,1], my = [0,1]) mirror([mx,0,0]) mirror([0,my,0]) cross_bolt(base_h+5);
     }
 }
 
 module front_panel() {
     difference() {
-        rbox(panel[0], panel[1], -wb-3, -wb, panel[2], panel[3], 0.01);
+        rbox(panel[0], panel[1], -wb-panel_t, -wb, panel[2], panel[3], 0.01);
         for (x = [panel[0]+3, panel[1]-3], z = [panel[2]+3, panel[3]-3]) {
-            ycyl(x, -wb-4, -wb+1, z, m3_clr, 24);
-            translate([x, -wb-3-0.01, z]) rotate([-90,0,0]) cylinder(d1=6.6, d2=m3_clr, h=1.6, $fn=24);
+            ycyl(x, -wb-panel_t-1, -wb+1, z, m3_clr, 24);
+            translate([x, -wb-panel_t-0.01, z]) rotate([-90,0,0]) cylinder(d1=6.6, d2=m3_clr, h=1.6, $fn=24);
         }
-        box(52-12.5, 52+12.5, -wb-4, -wb+1, 34-7, 34+7);              // OLED window 25 x 14
-        for (a = [-1,1], b = [-1,1]) ycyl(52+a*11.75, -wb-4, -wb+1, 32+b*11.9, 2.2, 16); // OLED M2
-        ycyl(76, -wb-4, -wb+1, 37, 7.4);                              // encoder
-        ycyl(76, -wb-4, -wb+1, 18, 12.3);                             // MIX button
+        box(52-12.5, 52+12.5, -wb-panel_t-1, -wb+1, 34-7, 34+7);      // OLED window 25 x 14
+        for (a = [-1,1], b = [-1,1]) ycyl(52+a*11.75, -wb-panel_t-1, -wb+1, 32+b*11.9, 2.2, 16); // OLED M2
+        ycyl(76, -wb-panel_t-1, -wb+1, 37, 7.4);                      // encoder
+        ycyl(76, -wb-panel_t-1, -wb+1, 18, 12.3);                     // MIX button
     }
 }
 
 // Crank arm, +X (with home flag) or -X. phi = crank angle of this arm's pin.
+// A solid 12 mm disc-and-lobe, no thin web.
 module crank_arm(s, phi) {
     mirror([s < 0 ? 1 : 0, 0, 0]) translate([0, 0, crank_z]) rotate([phi,0,0])
     difference() {
         union() {
-            hull() { xcyl(lift_x-15, lift_x-9, 0, 0, 16); xcyl(lift_x-15, lift_x-9, crank_r, 0, 14); }
-            xcyl(lift_x-21, lift_x-9, 0, 0, 16);                                  // hub
+            hull() { xcyl(lift_x-21, lift_x-9, 0, 0, 18); xcyl(lift_x-15, lift_x-9, crank_r, 0, 15); }
             xcyl(tower_x+3.5, lift_x-20.9, 0, 0, 8);                              // race boss
-            if (s > 0) box(lift_x-20, lift_x-9, -3, 3, -30, -6);                  // home flag
+            if (s > 0) hull() {                                                   // home flag
+                xcyl(lift_x-21, lift_x-9, 0, 0, 10);
+                box(lift_x-21, lift_x-9, -3, 3, -30, -26);
+            }
         }
         xcyl(0, 200, 0, 0, bore, 32);
         xcyl(lift_x-25, lift_x, crank_r, 0, m5_clr, 32);
         // grub screw on +Z, nut slot open to the hub's inner end face
-        translate([lift_x-18, 0, 0]) rotate([0,0,0]) {
-            zcyl(0, 0, 0, 9, 3.1, 24);
-            box(-2.9, 2.9 + 0, -2.9, 2.9, 3.4, 6.0);
-            box(-2.9 - 3.5, 2.9, -2.9, 2.9, 3.4, 6.0);
+        translate([lift_x-17, 0, 0]) {
+            zcyl(0, 0, 0, 10, 3.1, 24);
+            box(-2.9 - 5, 2.9, -2.9, 2.9, 3.4, 6.0);
         }
     }
 }
@@ -263,15 +296,14 @@ module yoke_beam(s, z_off=0) {
     mirror([s < 0 ? 1 : 0, 0, 0]) translate([0, 0, crank_z + z_off])
     difference() {
         union() {
-            box(lift_x-8, lift_x+6, -33, 33, -beam_h/2, beam_h/2);
-            box(lift_x-6, lift_x+6, -(lift_y+lifter_t), lift_y+lifter_t, -beam_h/2, beam_h/2);
+            box(lift_x-8, lift_x+7, -33, 33, -beam_h/2, beam_h/2);
+            box(lift_x-7, lift_x+7, -(lift_y+lifter_t), lift_y+lifter_t, -beam_h/2, beam_h/2);
         }
-        box(lift_x-9, lift_x+7, -(crank_r+slot_h/2), crank_r+slot_h/2, -slot_h/2, slot_h/2);
-        for (sy = [-1,1], dx = [-3,3]) {
+        box(lift_x-9, lift_x+8, -(crank_r+slot_h/2), crank_r+slot_h/2, -slot_h/2, slot_h/2);
+        for (sy = [-1,1], dx = [-3.5,3.5]) {
             zcyl(lift_x+dx, sy*(lift_y+lifter_t/2), -beam_h, beam_h, m3_clr, 24);
-            zcyl(lift_x+dx, sy*(lift_y+lifter_t/2), -beam_h, -beam_h/2+3, 6, 24);
+            zcyl(lift_x+dx, sy*(lift_y+lifter_t/2), -beam_h, -beam_h/2+4, 6, 24);
         }
-        box(lift_x-9, lift_x+7, -16, 16, -beam_h/2-1, -slot_h/2-3);   // lighten underside
     }
 }
 
@@ -279,61 +311,68 @@ module yoke_beam(s, z_off=0) {
 module pulley60_local() {
     difference() {
         union() {
-            cylinder(d=20, h=8);
-            translate([0,0,8]) cylinder(d=42, h=1);
-            translate([0,0,9]) gt2_ring(60, 7);
-            translate([0,0,16]) cylinder(d=42, h=1);
+            cylinder(d=22, h=8);
+            translate([0,0,8]) cylinder(d=42, h=1.5);
+            translate([0,0,9.5]) gt2_ring(60, 7);
+            translate([0,0,16.5]) cylinder(d=42, h=1.5);
         }
         translate([0,0,-1]) cylinder(d=bore, h=20, $fn=32);
-        grub_m3(4, 10, 0);
+        grub_m3(4, 11, 0);
     }
 }
-module pulley60() translate([-77.5, 0, crank_z]) rotate([0,90,0]) pulley60_local();
+module pulley60() translate([-80, 0, crank_z]) rotate([0,90,0]) pulley60_local();
 
 // =================================================================== RAILS
-// Guard-rail segment, modelled at the (+X, +Y) corner; all four corners use
-// the same part (rotate it 180 deg for the other side).
+// Guard-rail segment: thick U channel, modelled at the (+X, +Y) corner. The
+// same part fits all four corners. A 10 mm tongue on top fits a notch at the
+// bottom of the next segment, held by one M3 x 30 bolt across.
 module rail_seg(len, z0=0) {
     translate([0, 0, z0]) difference() {
         union() {
-            box(lift_x-fl_out, lift_x+fl_out, back_y0, back_y1, 0, len);
-            box(lift_x-fl_out, lift_x-fl_in, lift_y, back_y0, 0, len);
-            box(lift_x+fl_in,  lift_x+fl_out, lift_y, back_y0, 0, len);
-            box(lift_x-6, lift_x+6, mort_y0+0.2, mort_y1-0.2, len, len+10);   // tenon
+            hull() {                                                   // back
+                box(lift_x-fl_out+2, lift_x+fl_out-2, back_y0, back_y1, 0, len);
+                box(lift_x-fl_out, lift_x+fl_out, back_y0, back_y1-2, 0, len);
+            }
+            box(lift_x-fl_out, lift_x-fl_in, lift_y, back_y0+0.01, 0, len);    // flanges
+            box(lift_x+fl_in,  lift_x+fl_out, lift_y, back_y0+0.01, 0, len);
+            tongue_block(len);
         }
-        box(lift_x-6.3, lift_x+6.3, mort_y0, mort_y1, -1, 10.5);              // mortise
-        ycyl(lift_x, mort_y0-0.01, back_y1+1, 5, m3_clr, 24);                 // cross bolt, outer wall
-        ycyl(lift_x, back_y0+0.8, mort_y0+0.1, 5, m3_tap, 24);                // pilot, inner wall
-        ycyl(lift_x, mort_y0, mort_y1, len+5, m3_tap, 24);                    // tenon hole
+        box(lift_x-fl_in, lift_x+fl_in, back_y0-0.01, back_y1+1, -1, tongue+0.5); // notch
+        cross_bolt(5);
+        cross_bolt(len+5);
+        for (sx = [-1,1]) translate([lift_x+sx*(fl_out+0.01), bolt_y, 5]) rotate([0, sx*90, 0])
+            translate([0,0,-2.5]) rotate([0,0,30]) hexagon(5.8, 3);        // nut / head pockets
     }
 }
 
-// Top lid frame, sits on the top rail tenons.
+// Top lid frame: an 8 mm ring with solid corner blocks over the rail tongues.
 module lid_frame(z0) {
+    ox = lift_x + fl_out + 0.7;  oy = back_y1 + 1.7;
     translate([0, 0, z0]) difference() {
         union() {
             difference() {
-                rbox(-(lift_x+10.5), lift_x+10.5, -(back_y1+0.7), back_y1+0.7, 0, 6, 4);
-                rbox(-99.5, 99.5, -64, 64, -1, 7, 3);
+                rbox(-ox, ox, -oy, oy, 0, 8, 6);
+                rbox(-(lift_x-fl_out-0.5), lift_x-fl_out-0.5, -(lift_y+3), lift_y+3, -1, 9, 4);
             }
             for (sx = [-1,1], sy = [-1,1])
-                box(sx*99.5, sx*(lift_x+10.5), sy*(lift_y-1), sy*(back_y1+0.7), 0, 12);
+                box(sx*(lift_x-fl_out-0.5), sx*ox, sy*(lift_y-1), sy*oy, 0, 14);
         }
-        for (sx = [-1,1], sy = [-1,1]) {
-            box(sx*(lift_x-6.3), sx*(lift_x+6.3), sy*mort_y0, sy*mort_y1, -1, 10.5);
-            box(sx*(lift_x-6.5), sx*(lift_x+6.5), sy*(lift_y-0.5), sy*(back_y0-0.1), -1, 13);
+        for (mx = [0,1], my = [0,1]) mirror([mx,0,0]) mirror([0,my,0]) {
+            box(lift_x-fl_in, lift_x+fl_in, back_y0, back_y1+0.3, -1, tongue+0.5);
+            box(lift_x-lifter_w/2-0.5, lift_x+lifter_w/2+0.5, lift_y-0.5, back_y0-0.1, -1, 15);
+            xcyl(lift_x-ox-1, lift_x+ox, bolt_y, 5, m3_clr, 24);
         }
     }
 }
 
 // ================================================================= LIFTERS
-// Local frame: X centred (width 12), Y = 0 inner face .. lifter_t outer face,
-// Z along the bar. Standard segment: outer-half tongue below 0, full section
-// 0..70, inner-half lap 70..90. The tongue overlaps the segment below.
+// Local frame: X centred (width 14), Y = 0 inner face .. 12 outer face, Z along
+// the bar. Standard segment: 6 mm outer-half tongue below 0, full section 0..70,
+// 6 mm inner-half lap 70..90. The tongue overlaps the segment below.
 module lifter_pin(zp) {
     ycyl(0, -1, lifter_t+1, zp, m4_clr, 24);
-    ycyl(0, lifter_t-4, lifter_t+1, zp, 7.6, 32);                     // M4 head
-    translate([0, -0.01, zp]) rotate([-90,0,0]) rotate([0,0,30]) hexagon(7.2, 3.2); // nut
+    ycyl(0, lifter_t-4.5, lifter_t+1, zp, 7.6, 32);                   // M4 head
+    translate([0, -0.01, zp]) rotate([-90,0,0]) rotate([0,0,30]) hexagon(7.2, 3.5); // nut
 }
 module lap_csk(zs) for (z = zs) {                                     // lower part of a lap
     ycyl(0, -1, lifter_t, z, m3_clr, 24);
@@ -341,14 +380,15 @@ module lap_csk(zs) for (z = zs) {                                     // lower p
 }
 module lap_slot(zs) for (z = zs) {                                    // tongue: slot + nut pocket
     hull() for (d = [-4,4]) ycyl(0, -1, lifter_t+1, z+d, m3_clr, 24);
-    hull() for (d = [-4,4]) translate([0, lifter_t-2.6, z+d]) rotate([-90,0,0]) rotate([0,0,30]) hexagon(5.7, 3);
+    hull() for (d = [-4,4]) translate([0, lifter_t-3, z+d]) rotate([-90,0,0]) rotate([0,0,30]) hexagon(5.8, 4);
 }
+hw = lifter_w/2;
 module lifter_std() {
     difference() {
         union() {
-            box(-6, 6, lifter_t/2, lifter_t, -lap, 0);
-            box(-6, 6, 0, lifter_t, 0, 90-lap);
-            box(-6, 6, 0, lifter_t/2, 90-lap, 90);
+            box(-hw, hw, lifter_t/2, lifter_t, -lap, 0);
+            box(-hw, hw, 0, lifter_t, 0, 90-lap);
+            box(-hw, hw, 0, lifter_t/2, 90-lap, 90);
         }
         lifter_pin(seg_pin);
         lap_csk([90-15, 90-5]);
@@ -359,42 +399,55 @@ module lifter_L1(s) {          // s = +1 cap end (longer), -1 drive end
     len = L1_len + s*bias;
     difference() {
         union() {
-            box(-6, 6, 0, lifter_t, 0, len-lap);
-            box(-6, 6, 0, lifter_t/2, len-lap, len);
+            box(-hw, hw, 0, lifter_t, 0, len-lap);
+            box(-hw, hw, 0, lifter_t/2, len-lap, len);
         }
         lifter_pin(len - 24);
         lap_csk([len-15, len-5]);
-        for (dx = [-3,3]) zcyl(dx, lifter_t/2, -1, 12, m3_tap, 24);
+        for (dx = [-3.5,3.5]) zcyl(dx, lifter_t/2, -1, 14, m3_tap, 24);
     }
 }
 
 // =================================================================== DECK
 // Deck-local frame: X, Y as global, z = 0 at the deck underside.
+back_t = 4.3;  lip_t = 5;
 module deck_frame() {
     bars = [drive_bar_x, centre_bar_x];
     difference() {
         union() {
             box(-hx, hx, -hy, hy, 0, deck_floor);
-            box(-(boss_x0-0.5), boss_x0-0.5, hy-3, hy, 0, back_top);        // back wall
-            box(-x_in, x_in, -hy, -hy+2.5, 0, lip_h);                       // front lip
-            for (xb = bars) box(xb-bar_w/2, xb+bar_w/2, -hy, -hy+5, 0, bar_z0); // bar posts
+            box(-(boss_x0-0.5), boss_x0-0.5, hy-back_t, hy, 0, back_top);         // back wall
+            gusset_yz(hy-back_t, deck_floor, -4, 4, -(boss_x0-0.5), boss_x0-0.5); // its fillet
+            box(-(boss_x0-0.5), boss_x0-0.5, hy-back_t-1, hy, back_top-5, back_top); // top bead
+            for (x = [-60, 0, 60]) gusset_yz(hy-0.01, deck_floor-0.01, 8, back_top-6, x-2.5, x+2.5); // buttresses
+            box(-90, 90, hy-0.01, hy+8, 0, deck_floor);                           // buttress foot strip
+            box(-x_in, x_in, -hy, -hy+lip_t, 0, lip_h);                           // front lip
+            for (xb = bars) hull() {                                              // bar posts
+                box(xb-bar_w/2, xb+bar_w/2, -hy, -hy+lip_t, 0, bar_z0);
+                box(xb-bar_w/2-6, xb+bar_w/2+6, -hy, -hy+lip_t, 0, lip_h);
+            }
         }
         for (sx = [-1,1], y = valley_ys) {                                  // end-plate screws
             zcyl(sx*(hx-end_t/2), y, -1, deck_floor+1, m3_clr, 24);
             translate([sx*(hx-end_t/2), y, -0.01]) cylinder(d1=6.4, d2=m3_clr, h=1.7, $fn=24);
         }
         for (xb = bars) {
-            ycyl(xb, hy-4, hy+1, 30, m3_clr, 24);                           // bar, back screw
-            zcyl(xb, -hy+2.5, bar_z0-10, bar_z0+1, m3_tap, 24);             // bar, front screw
+            ycyl(xb, hy-back_t-2, hy+1, 30, m3_clr, 24);                    // bar, back screw
+            zcyl(xb, -hy+lip_t/2, bar_z0-12, bar_z0+1, m3_tap, 24);         // bar, front screw
         }
     }
 }
 
+// End plate: 8 mm plate, full-depth pin bosses blended into it with gussets.
 module end_plate(s) {          // s = -1 drive end (round pin holes), +1 cap end (slots, bumpers)
     difference() {
         union() {
             box(s*x_in, s*hx, -hy, hy, deck_floor, plate_top);
-            for (sy = [-1,1]) box(s*boss_x0, s*hx, sy*boss_y0, sy*hy, boss_z0, plate_top);
+            for (sy = [-1,1]) {
+                box(s*boss_x0, s*hx, sy*boss_y0, sy*hy, boss_z0, plate_top);
+                gusset_xz(s*x_in, boss_z0, -s*(x_in-boss_x0), -(x_in-boss_x0)*0.6,
+                          sy*(hy-4), sy*hy);                                  // under the boss, outer 4 mm
+            }
             if (s > 0) for (y = valley_ys) dome(x_in, y, bottle_z, -1);
         }
         for (y = roller_ys) {
@@ -411,18 +464,19 @@ module end_plate(s) {          // s = -1 drive end (round pin holes), +1 cap end
     }
 }
 
+// Stop bar: 8 x 12 mm solid bar, sits on a post on the front lip.
 module stop_bar(xc, both) {
     difference() {
         union() {
-            box(xc-bar_w/2, xc+bar_w/2, -hy, hy-3, bar_z0, bar_z1);
+            box(xc-bar_w/2, xc+bar_w/2, -hy, hy-back_t, bar_z0, bar_z1);
             for (y = valley_ys) {
                 dome(xc+bar_w/2, y, bottle_z, 1);
                 if (both) dome(xc-bar_w/2, y, bottle_z, -1);
             }
         }
-        zcyl(xc, -hy+2.5, bar_z0-1, bar_z1+1, m3_clr, 24);
-        zcyl(xc, -hy+2.5, bar_z1-3, bar_z1+1, 6.2, 24);
-        ycyl(xc, hy-3-10, hy, 30, m3_tap, 24);
+        zcyl(xc, -hy+lip_t/2, bar_z0-1, bar_z1+1, m3_clr, 24);
+        zcyl(xc, -hy+lip_t/2, bar_z1-3, bar_z1+1, 6.2, 24);
+        ycyl(xc, hy-back_t-12, hy, 30, m3_tap, 24);
     }
 }
 
@@ -482,35 +536,45 @@ module roller_parts() {
     translate([pulley_x0, roller_ys[1], roller_z]) rotate([0,-90,0]) double_pulley_local();
 }
 
-// Roll-motor bracket (level 1 only), bolts to the -X end plate.
+// Roll-motor bracket (level 1 only): one solid box-section part, 6 mm walls,
+// bolts to the -X end plate.
 module motor_bracket() {
     mp0 = motor_y - 25;  mp1 = motor_y + 25;
+    mf = motor_face_x;
     difference() {
         union() {
-            box(-hx-4, -hx, 22, hy, deck_floor, plate_top);                  // mount plate
-            box(motor_face_x+4, -hx-4, 22, hy, 30, plate_top);               // top arm
-            box(motor_face_x, -hx-4, hy-4, hy, deck_floor, plate_top);       // side web
-            box(motor_face_x, motor_face_x+4, mp0, mp1, roller_z-21, plate_top); // motor plate
+            box(-hx-6, -hx, 22, hy, deck_floor, plate_top);                   // mount plate
+            box(mf+6, -hx-6, 22, hy, plate_top-9, plate_top);                 // top arm
+            box(mf, -hx-6, hy-6, hy, deck_floor, plate_top);                  // side web
+            box(mf, mf+6, mp0, mp1, roller_z-21, plate_top);                  // motor plate
         }
-        for (p = [[30,8],[30,26],[52,26]]) xcyl(-hx-5, -hx+1, p[0], p[1], m3_clr, 24);
-        hull() for (d = [-3,3]) xcyl(motor_face_x-1, motor_face_x+5, motor_y+d, roller_z, 23);
+        for (p = [[30,8],[30,26],[52,26]]) {
+            xcyl(-hx-7, -hx+1, p[0], p[1], m3_clr, 24);
+            xcyl(mf+7, -hx-3, p[0], p[1], 6.5, 24);                           // head access
+        }
+        hull() for (d = [-3,3]) xcyl(mf-1, mf+7, motor_y+d, roller_z, 23);
         for (a = [-1,1], b = [-1,1]) hull() for (d = [-3,3])
-            xcyl(motor_face_x-1, motor_face_x+5, motor_y+a*15.5+d, roller_z+b*15.5, m3_clr, 24);
+            xcyl(mf-1, mf+7, motor_y+a*15.5+d, roller_z+b*15.5, m3_clr, 24);
     }
 }
 
-// Belt guard over the GT2 loop that runs up to the next level (levels 1 and 2).
+// Belt guard over the GT2 loop that runs up to the next level (levels 1 and 2):
+// a 3 mm U channel with a solid 6 mm mounting block.
 module belt_guard() {
-    gy0 = -32; gy1 = 2;
+    gy0 = -32; gy1 = 2;  gb = -152;
     difference() {
         union() {
-            box(-hx-2, -hx, gy0, gy1, boss_z0, plate_top);                   // mount
-            box(-152, -150, gy0, gy1, 8, 100);                               // back
-            box(-152, -hx-2, gy0, gy0+2, boss_z0, 100);                      // sides
-            box(-152, -hx-2, gy1-2, gy1, boss_z0, 100);
-            box(-152, -hx-2.5, gy0, gy0+2, 8, boss_z0);                      // front side, low part
+            box(-hx-6, -hx, gy0, gy1, boss_z0, plate_top);                    // mount block
+            box(gb-3, gb, gy0, gy1, 8, 100);                                  // back
+            box(gb-3, -hx-6, gy0, gy0+3, boss_z0, 100);                       // sides
+            box(gb-3, -hx-6, gy1-3, gy1, boss_z0, 100);
+            box(gb-3, -hx-6, gy0, gy0+3, 8, boss_z0);
+            gusset_xz(-hx-6, boss_z0, -10, -10, gy0, gy0+3);
         }
-        for (y = [-29, 0]) xcyl(-hx-3, -hx+1, y, 32, m3_clr, 24);
+        for (y = [-29, 0]) {
+            xcyl(-hx-7, -hx+1, y, 32, m3_clr, 24);
+            xcyl(gb-4, -hx-3, y, 32, 6.5, 24);                                // head access
+        }
     }
 }
 
@@ -530,8 +594,8 @@ module fit_test() {
         translate([80, 24, -1]) cylinder(d=m3_clr, h=10, $fn=24);
     }
     // short rail and lifter stub to check the sliding fit
-    translate([-lift_x + 110, -lift_y + 45, 0]) rail_seg(20);
-    translate([140, 45, 0]) box(-6, 6, 0, lifter_t, 0, 30);
+    translate([0, -lift_y + 40, 0]) rail_seg(25);
+    translate([150, 40, 0]) box(-hw, hw, 0, lifter_t, 0, 30);
 }
 
 // ============================================================ PRINT LAYOUT
@@ -539,16 +603,16 @@ module fit_test() {
 module print_part(p) {
     if (p == "base_shell") base_shell();
     else if (p == "base_lid") translate([0,0,-shell_h]) base_lid();
-    else if (p == "front_panel") rotate([90,0,0]) translate([0, wb+3, 0]) front_panel();
+    else if (p == "front_panel") rotate([90,0,0]) translate([0, wb+panel_t, 0]) front_panel();
     else if (p == "crank_arm_cap") translate([0,0,lift_x-9]) rotate([0,90,0]) translate([0,0,-crank_z]) crank_arm(1, 90);
     else if (p == "crank_arm_drive") translate([0,0,lift_x-9]) rotate([0,-90,0]) translate([0,0,-crank_z]) crank_arm(-1, 90);
-    else if (p == "yoke_beam") translate([0,0,lift_x+6]) rotate([0,90,0]) translate([0,0,-crank_z]) yoke_beam(1);
+    else if (p == "yoke_beam") translate([0,0,lift_x+7]) rotate([0,90,0]) translate([0,0,-crank_z]) yoke_beam(1);
     else if (p == "pulley_60T") pulley60_local();
     else if (p == "rail_L1") rail_seg(rail_L1);
     else if (p == "rail") rail_seg(pitch);
-    else if (p == "lifter_L1_cap") rotate([0,-90,0]) translate([6,0,0]) lifter_L1(1);
-    else if (p == "lifter_L1_drive") rotate([0,-90,0]) translate([6,0,0]) lifter_L1(-1);
-    else if (p == "lifter") rotate([0,-90,0]) translate([6,0,lap]) lifter_std();
+    else if (p == "lifter_L1_cap") rotate([0,-90,0]) translate([hw,0,0]) lifter_L1(1);
+    else if (p == "lifter_L1_drive") rotate([0,-90,0]) translate([hw,0,0]) lifter_L1(-1);
+    else if (p == "lifter") rotate([0,-90,0]) translate([hw,0,lap]) lifter_std();
     else if (p == "deck_frame") deck_frame();
     else if (p == "end_plate_drive") translate([0,0,hx]) rotate([0,-90,0]) end_plate(-1);
     else if (p == "end_plate_cap") translate([0,0,hx]) rotate([0,90,0]) end_plate(1);
@@ -559,7 +623,7 @@ module print_part(p) {
     else if (p == "roller_core") core_local();
     else if (p == "double_pulley") double_pulley_local();
     else if (p == "motor_bracket") rotate([180,0,0]) translate([0, 0, -plate_top]) motor_bracket();
-    else if (p == "belt_guard") translate([0,0,152]) rotate([0,-90,0]) belt_guard();
+    else if (p == "belt_guard") translate([0,0,155]) rotate([0,-90,0]) belt_guard();
     else if (p == "lid_frame") lid_frame(0);
     else if (p == "fit_test") fit_test();
 }

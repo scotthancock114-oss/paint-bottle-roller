@@ -9,11 +9,26 @@ Parametric OpenSCAD models of every printed part, with STLs ready to slice.
 - `export.sh`: re-exports every STL into `stl/` after you change a parameter.
 - `stl/`: the STLs, already turned onto the bed in their print orientation.
 
-**This is a first CAD pass that hasn't been test printed.** Print `fit_test.stl` first, set the fit parameters from it, and re-export before printing the big parts.
+## Designed for FDM
+
+Revision 2 reworks every part for 3D printing rather than as stamped plate:
+
+- **Guard rails** are a thick U channel (7 mm flanges, 8 mm back, chamfered outer corners). Segments stack on a solid 14 × 8 × 10 mm tongue held by one M3 × 30 cross bolt, replacing the 2.6 mm tenon.
+- **Lifter bars** are 14 × 12 mm (were 12 × 9.5), so each half of the lap joint is 6 mm thick.
+- **Base shell** has 4 mm walls, A-frame crank towers with a wide foot, a 6 mm rock-motor plate with three gussets, and a tapered endstop post.
+- **Deck** has a 5 mm front lip, a filleted back wall with a stiffening bead on top and three buttresses behind it, and flared posts under the stop bars. The stop bars are 8 × 12 mm solid bars.
+- **End plates** have gussets under the deck-pin bosses.
+- **Crank arms** are a solid 12 mm lobe, and the home flag is part of that lobe instead of a thin fin.
+- **Motor bracket** is one box-section part with 6 mm walls. The belt guard has 3 mm walls on a 6 mm mounting block.
+- **Lid frame** is an 8 mm ring with solid corner blocks.
+
+To fit the thicker rails and lifters, the base is now 160 mm deep (was 152).
+
+**This CAD hasn't been test printed.** Print `fit_test.stl` first, set the fit parameters from it, and re-export before printing the big parts.
 
 ## Print list
 
-PETG, 0.4 mm nozzle, 0.2 mm layers, 4 walls, 25 % gyroid unless noted. Every part fits a 256 × 256 mm bed (the largest is the 250 × 152 mm base shell). No part needs supports.
+PETG, 0.4 mm nozzle, 0.2 mm layers, 4 walls, 25 % gyroid unless noted. Every part fits a 256 × 256 mm bed (the largest is the 250 × 160 mm base shell). No part needs supports.
 
 ### Base kit (print once)
 
@@ -21,16 +36,16 @@ PETG, 0.4 mm nozzle, 0.2 mm layers, 4 walls, 25 % gyroid unless noted. Every par
 | --- | --- | --- |
 | `fit_test` | 1 | Print first. Bearing seats at −0.1/0/+0.1/+0.2 mm (1 to 4 notches), 5.0 to 5.3 mm rod holes, M4 and M3 holes, an M3 nut trap, and a short rail with a lifter stub to check the sliding fit |
 | `base_shell` | 1 | Floor down. Crank towers, rock-motor plate, PCB standoffs, panel pillars, endstop post |
-| `base_lid` | 1 | Flat, tenons up. Holds the four guard rails |
+| `base_lid` | 1 | Flat, rail tongues up. Holds the four guard rails |
 | `front_panel` | 1 | Face down. OLED, encoder and MIX button |
 | `crank_arm_cap` | 1 | +X arm with the home flag. 100 % infill |
 | `crank_arm_drive` | 1 | −X arm. 100 % infill |
 | `yoke_beam` | 2 | Same part at both ends (flip it for −X). 6 walls |
 | `pulley_60T` | 1 | Rock reduction pulley, 0.12 mm layers |
-| `rail_L1` | 4 | First guard-rail segment (104 mm), standing upright |
+| `rail_L1` | 4 | First guard-rail segment (104 mm), standing upright on its 28 × 20 mm footprint |
 | `lifter_L1_cap` | 2 | +X lifters for level 1 (108.5 mm, carry the caps-up bias). 6 walls |
 | `lifter_L1_drive` | 2 | −X lifters for level 1 (97 mm). 6 walls |
-| `lid_frame` | 1 | Sits on the top rail tenons |
+| `lid_frame` | 1 | Sits on the top rail tongues |
 | `motor_bracket` | 1 | Roll motor on the level 1 deck. Prints top face down |
 
 ### Per level (print once for each level)
@@ -67,7 +82,8 @@ PETG, 0.4 mm nozzle, 0.2 mm layers, 4 walls, 25 % gyroid unless noted. Every par
 | M4 × 20 SHCS + nut | Deck pins | 4 per level |
 | M3 grub screw + nut | Collars, pulleys, crank arms | 4 per level + 1 per level (pulley) + 3 |
 | M3 countersunk × 8 to 12 | Deck to end plates, lifter laps, lid | ~6 per level + 8 per lap joint |
-| M3 × 8 to 16 | Rails (cross bolts), stop bars, bracket, guard, beam to lifters, panel, PCB | ~40 |
+| M3 × 30 + nut | Rail stacking joints (cross bolts) | 4 per level + 4 |
+| M3 × 8 to 16 | Stop bars, bracket, guard, beam to lifters, panel, PCB | ~30 |
 | GT2 6 mm closed loop, 158 mm | Rock drive (motor 20T to 60T) | 1 |
 | GT2 6 mm closed loop, 158 mm | Roll motor 20T to roller 2 (level 1) | 1 |
 | GT2 6 mm closed loop, 220 mm | Roller 2 to roller 2 between levels | 1 per added level |
@@ -78,7 +94,7 @@ PETG, 0.4 mm nozzle, 0.2 mm layers, 4 walls, 25 % gyroid unless noted. Every par
 
 Turning the concept into parts moved some numbers. Everything is a parameter, so these can be changed back.
 
-- **Base is 250 × 152 × 62 mm** (was 260 × 152 × 55). 250 mm fits the X1C bed in one piece. The extra height fits the crank, which needs 38 mm of stroke plus a 24 mm Scotch-yoke beam. The yoke beams rise a few mm through slots in the base lid at the top of their stroke.
+- **Base is 250 × 160 × 62 mm** (was 260 × 152 × 55). 250 mm fits the X1C bed in one piece. The extra height fits the crank, which needs 38 mm of stroke plus a 24 mm Scotch-yoke beam. The yoke beams rise a few mm through slots in the base lid at the top of their stroke.
 - **Rock clearance is 32 mm** (was 20). With the 3° caps-up bias and the deck ends reaching past the lifters, the −X end of level 1 drops about 30 mm at the bottom of its stroke, not 19. Heights to the top of the lid frame are now about 178 / 268 / 358 mm for 1 / 2 / 3 levels.
 - **The caps-up bias is split ±5.8 mm** (the +X lifters are 11.5 mm longer than the −X ones). The doc's "+X pair 5.8 mm longer" gives only 1.5°; this gives the intended 3°.
 - **Deck is 244 mm long** (was 228) so two 92 mm bottles, the drive collars and three domed stops fit with about 3.7 mm spare per bottle. It still fits the bed.
@@ -91,6 +107,6 @@ Turning the concept into parts moved some numbers. Everything is a parameter, so
 
 - The crank arms are set exactly 180° apart with their grub screws. File a small flat on the shaft for each grub.
 - Lifter segments overlap by 20 mm. The upper segment has slotted holes: slide it up until the GT2 belt between levels is snug, then tighten the countersunk M3s.
-- Rails stack with a tenon and mortise and one M3 cross bolt per joint. The lid frame just sits on the top tenons.
+- Rails stack with a tongue in a notch and one M3 × 30 bolt across each joint. The lid frame just sits on the top tongues.
 - The deck pins are M4 bolts locked to the lifter with a nut. They turn freely in the end-plate bosses. The cap-end holes are slots, because the pin spacing changes as the deck tilts.
 - Check the endstop post, the DC jack hole (11.2 mm), the USB slot position and the front-panel cutouts against your actual parts before printing the base shell. Their positions are parameters near the top of the base section.
