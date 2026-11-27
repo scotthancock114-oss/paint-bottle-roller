@@ -244,7 +244,7 @@ Optional: a FYSETC E4 board (ESP32 with 4 TMC2208/2209 drivers onboard, \~$30) c
 
 Default settings for the X1C: PETG, 0.4 mm nozzle, 0.2 mm layers, 4 walls, 25 % gyroid infill. Bearing seats are printed 0.1 mm undersize and pressed in.
 
-The STLs and the full print list (with orientations and the hardware each part needs) are in [cad/README.md](../cad/README.md). Revision 3 merged parts to suit the 256 mm X1C bed: 25 parts for base + 1 level, 46 for 2 levels and 67 for 3.
+The STLs and the full print list (with orientations and the hardware each part needs) are in [cad/README.md](../cad/README.md). Revision 3 merged parts to suit the 256 mm X1C bed: 25 parts for base + 1 level, 46 for 2 levels and 67 for 3. Revision 4 adds 45° chamfers to the outer edges and a 0.4 mm elephant-foot relief on every bed face, without touching any fit, sliding or bearing face.
 
 | Part | Qty | Orientation | Notes |
 | --- | --- | --- | --- |
