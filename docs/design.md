@@ -244,22 +244,24 @@ Optional: a FYSETC E4 board (ESP32 with 4 TMC2208/2209 drivers onboard, \~$30) c
 
 Default settings for the X1C: PETG, 0.4 mm nozzle, 0.2 mm layers, 4 walls, 25 % gyroid infill. Bearing seats are printed 0.1 mm undersize and pressed in.
 
-| Part | Qty | Material | Orientation | Notes |
-| --- | --- | --- | --- | --- |
-| Base shell | 1 | PETG | upside down (top face on the plate) | 55 mm tall, crankshaft bearing bosses, electronics bay |
-| Base lid plate with rail sockets | 1 | PETG | flat | holds the 4 guide rails |
-| Electronics front panel | 1 | PETG | flat, face down | OLED window, encoder and MIX button; textured plate |
-| Crank disk | 2 | PETG, 100 % infill | flat | 19 mm throw, set-screw hub on 8 mm shaft |
-| Yoke + conrod | 2 | PETG, 6 walls | flat on its side | 625ZZ at the crank end |
-| Corner guide-rail segment | 4 per level | PETG | standing upright | 90 mm long, dovetail stacking joint |
-| Lifter bar segment | 4 per level | PETG, 6 walls | lying flat | 90 mm, slotted joint for belt tension; +X pair 5.8 mm longer at level 1 only |
-| Deck frame with drip tray | 1 per level | PETG | flat, tray side down | full back wall, 10 mm front lip, corner ears, round holes at −X, slots at +X |
-| Roller end plates | 2 per level | PETG | flat | 625ZZ seats (16 mm OD; MR105ZZ if upgraded), pitch 29 mm |
-| Bottle end bumpers | 4 per level | TPU 95A | flat | axis-centred, if TPU is available (PETG works too) |
-| Roller hub / O-ring groove collars | 8 per level | PETG | standing on end | G1 and G2 grooves, 14 mm root |
-| Roll motor bracket | 1 | PETG | flat | level 1 only, −X end, fits any NEMA 17 (40 mm Ender motor by default) |
-| Top lid frame | 1 | PETG | upside down | 6 mm, open centre, sits on the top rail segments |
-| Belt guard | 1 per level | PETG | flat | covers the GT2 loop |
+The STLs and the full print list (with orientations and the hardware each part needs) are in [cad/README.md](../cad/README.md). Revision 3 merged parts to suit the 256 mm X1C bed: 25 parts for base + 1 level, 46 for 2 levels and 67 for 3.
+
+| Part | Qty | Orientation | Notes |
+| --- | --- | --- | --- |
+| Base shell | 1 | floor down | crank towers, rock-motor plate, electronics bay; OLED, encoder and MIX button holes are in its front wall |
+| Base lid | 1 | flat | holds the 4 guide rails |
+| Crank arms | 2 (cap, drive) | flat | 100 % infill; the cap arm carries the home flag |
+| Yoke + level 1 lifters | 2 (cap, drive) | flat on the outer face | one U-shaped part per end; the cap pair is 11.5 mm longer for the 3° caps-up bias |
+| 60T rock pulley | 1 | flat | 0.12 mm layers |
+| Guide-rail segment | 4 per level | standing upright | 104 mm at level 1, 90 mm above; tongue joint with one M3 × 30 cross bolt |
+| Lifter segment | 4 per added level | lying flat | 90 mm, slotted lap joint for belt tension |
+| Deck with end plates | 1 per level | tray side down | 244 × 123 mm; bearing seats, deck-pin bosses and cap-end bumpers in one part |
+| Stop bars | 2 per level | flat | separate so they can be reprinted for another bottle length |
+| Roller halves | 8 per level (4 drive, 4 cap) | standing on end | 12 mm core; the drive half carries the O-ring groove collar |
+| Double 20T pulley | 1 per level | standing on end | roller 2, V1 and V2 belts |
+| Roll motor bracket | 1 | top face down | level 1 only |
+| Belt guard | 1 per level below the top | on its back | covers the GT2 loop |
+| Top lid frame | 1 | flat | sits on the top rail tongues |
 
 Print time is roughly 9 h for the base kit and 7 h per level.
 
@@ -309,10 +311,10 @@ The firmware is in PaintRoller.ino, with a platformio.ini. It uses FastAccelStep
 
 **Level 1**
 
-6. Sleeve the four rollers with silicone, fit the groove collars and press the 625ZZ bearings into both end plates. Assemble the deck.
+6. Press the 625ZZ bearings into the deck's end plates from inside the tray. Sleeve the eight roller halves with silicone, lay them in, and push each rod through from outside. Then screw on the stop bars.
 7. Fit the three O-rings: 2→1 and 3→4 on G1, 2→3 on G2.
 8. Mount the roll motor bracket at −X and couple the Ender 3 motor to roller 2.
-9. Fit the four level 1 lifter segments (the +X pair is the 5.8 mm longer bias pair) onto the yokes, and pin the deck to them.
+9. The level 1 lifters are part of the two yoke parts (the +X one is longer for the caps-up bias). Pin the deck to them.
 10. Run the motor cable up the −X rail with a service loop.
 
 **Adding a level (the same for levels 2, 3 and 4)**

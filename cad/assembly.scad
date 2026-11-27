@@ -14,7 +14,7 @@ module deck_place(n)
 
 module level(n) deck_place(n) {
     color("SteelBlue") deck_frame();
-    color("SkyBlue") { end_plate(-1); end_plate(1); stop_bar(drive_bar_x, false); stop_bar(centre_bar_x, true); }
+    color("SkyBlue") { stop_bar(drive_bar_x, false); stop_bar(centre_bar_x, true); }
     color("Orange") roller_parts();
     color("DimGray") for (y = roller_ys) xcyl(y == roller_ys[1] ? -150 : -120, 120, y, roller_z, 5, 16);
     color("Gainsboro", 0.6) for (y = roller_ys) xcyl(core_x0, core_x1, y, roller_z, roller_d, 24);
@@ -32,7 +32,6 @@ module level(n) deck_place(n) {
 module lifters() for (s = [-1,1]) for (sy = [-1,1]) {
     pl = (sy > 0) ? [0,0,0] : [0,0,180];
     color("Goldenrod") {
-        translate([s*lift_x, sy*lift_y, beam_top + s*crank_r*sin(phi)]) rotate(pl) lifter_L1(s);
         for (n = [2:levels]) if (levels >= 2)
             translate([s*lift_x, sy*lift_y, pinz(n) + hS(s) - seg_pin]) rotate(pl) lifter_std();
     }
@@ -45,9 +44,8 @@ module rails() for (mx = [0,1], my = [0,1]) mirror([mx,0,0]) mirror([0,my,0]) co
 
 color("DarkSlateGray") base_shell();
 color("SlateGray") base_lid();
-color("DimGray") front_panel();
 color("Orange") { crank_arm(1, phi); crank_arm(-1, phi+180); pulley60(); }
-color("Tomato") { yoke_beam(1, crank_r*sin(phi)); yoke_beam(-1, -crank_r*sin(phi)); }
+color("Tomato") { yoke_lifter(1, crank_r*sin(phi)); yoke_lifter(-1, -crank_r*sin(phi)); }
 color("DimGray") xcyl(-101, 101, 0, crank_z, 5, 16);
 color("Black") box(-50, -10, rock_motor[0]-21, rock_motor[0]+21, rock_motor[1]-21, rock_motor[1]+21);
 rails();
