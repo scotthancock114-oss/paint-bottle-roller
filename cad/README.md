@@ -11,7 +11,7 @@ Parametric OpenSCAD models of every printed part, with STLs ready to slice.
 
 ## Designed for FDM
 
-Revision 2 reworks every part for 3D printing rather than as stamped plate:
+Revision 2 reworked every part for 3D printing rather than as stamped plate:
 
 - **Guard rails** are a thick U channel (7 mm flanges, 8 mm back, chamfered outer corners). Segments stack on a solid 14 × 8 × 10 mm tongue held by one M3 × 30 cross bolt, replacing the 2.6 mm tenon.
 - **Lifter bars** are 14 × 12 mm (were 12 × 9.5), so each half of the lap joint is 6 mm thick.
@@ -24,6 +24,42 @@ Revision 2 reworks every part for 3D printing rather than as stamped plate:
 
 To fit the thicker rails and lifters, the base is now 160 mm deep (was 152).
 
+## Fewer parts (revision 3)
+
+Revision 3 merges parts that only existed because they were small or bolted together, sized for a 256 × 256 × 256 mm bed (Bambu X1C). The largest parts are the base shell and lid (250 × 160 mm) and the deck (244 × 123 mm). The deck and base already needed a 256 mm bed, so a 220 mm Ender 3 bed won't fit this design.
+
+| Merged part | Replaces | Saved |
+| --- | --- | --- |
+| `deck` | `deck_frame` + `end_plate_drive` + `end_plate_cap` | 2 parts and 6 M3 screws per level |
+| `roller_drive` | `drive_collar` + one `roller_core` | 4 parts per level |
+| `roller_cap` | `end_collar` + one `roller_core` | 4 parts per level |
+| `yoke_lifter_cap`, `yoke_lifter_drive` | 2 × `yoke_beam` + 4 level-1 lifters | 4 parts and 8 M3 screws |
+| `base_shell` | `base_shell` + `front_panel` | 1 part and 4 M3 screws |
+
+| Stack | Parts before | Parts now |
+| --- | --- | --- |
+| Base + 1 level | 40 | 25 |
+| Base + 2 levels | 71 | 46 |
+| Base + 3 levels | 102 | 67 |
+
+Unique STLs go from 25 to 20 (counting `fit_test`). The motion is unchanged: the same lifters, cranks and deck pins, and every level is still identical.
+
+How the merged parts print without supports:
+
+- **Deck:** the end plates now stand upright at each end of the tray. The deck-pin bosses have 45° undersides: a 3.5 mm strip on the outside slopes down to the end plate, and the rest of the boss slopes up from that strip. The roller bearing seats are now sideways holes, so check them with the new sideways seats on `fit_test`.
+- **Rollers:** each one stands on the plain core end with the collar on top. A 45° cone under the drive collar's flange replaces the flat step. That cone takes 3.5 mm of core, so cut the silicone sleeves 195 mm long.
+- **Yoke + lifters:** a flat U, 140 × 133 mm and 15 mm thick, printed lying on its outer face. An 8 mm fillet joins each lifter to the beam. It drops into the base through the same lid slots as before.
+- **Base shell:** the OLED window, encoder and MIX button holes are cut into the 4 mm front wall. Mount the parts from inside.
+
+**Kept separate on purpose:**
+
+- **Stop bars** stay as separate parts, so you can reprint them for a different bottle length without reprinting the deck. The 26 × 92 mm bottle size is still a guess.
+- **Rail segments** stay separate. Fixing the first rails to the base lid would block the deck-pin bolts during assembly.
+- **Motor bracket and belt guard** stay separate, because they print in different orientations and the bracket only goes on level 1.
+- **Each roller stays in two pieces**, because a single 227 mm, 12 mm-wide roller standing on end would wobble as it printed.
+
+This revision also fixes a clash from revision 2: roller 1's drive collar ran 0.5 mm into the front lip. The lip now has a 21 mm clearance groove there.
+
 **This CAD hasn't been test printed.** Print `fit_test.stl` first, set the fit parameters from it, and re-export before printing the big parts.
 
 ## Print list
@@ -35,16 +71,14 @@ PETG, 0.4 mm nozzle, 0.2 mm layers, 4 walls, 25 % gyroid unless noted. Every par
 | STL | Qty | Notes |
 | --- | --- | --- |
 | `fit_test` | 1 | Print first. Bearing seats at −0.1/0/+0.1/+0.2 mm (1 to 4 notches), 5.0 to 5.3 mm rod holes, M4 and M3 holes, an M3 nut trap, and a short rail with a lifter stub to check the sliding fit |
-| `base_shell` | 1 | Floor down. Crank towers, rock-motor plate, PCB standoffs, panel pillars, endstop post |
+| `base_shell` | 1 | Floor down. Crank towers, rock-motor plate, PCB standoffs, endstop post, and the OLED, encoder and MIX button holes in the front wall |
 | `base_lid` | 1 | Flat, rail tongues up. Holds the four guard rails |
-| `front_panel` | 1 | Face down. OLED, encoder and MIX button |
 | `crank_arm_cap` | 1 | +X arm with the home flag. 100 % infill |
 | `crank_arm_drive` | 1 | −X arm. 100 % infill |
-| `yoke_beam` | 2 | Same part at both ends (flip it for −X). 6 walls |
+| `yoke_lifter_cap` | 1 | +X yoke beam with both level 1 lifters (108.5 mm, carry the caps-up bias). Lies flat on its outer face. 6 walls |
+| `yoke_lifter_drive` | 1 | −X yoke beam with both level 1 lifters (97 mm). 6 walls |
 | `pulley_60T` | 1 | Rock reduction pulley, 0.12 mm layers |
 | `rail_L1` | 4 | First guard-rail segment (104 mm), standing upright on its 28 × 20 mm footprint |
-| `lifter_L1_cap` | 2 | +X lifters for level 1 (108.5 mm, carry the caps-up bias). 6 walls |
-| `lifter_L1_drive` | 2 | −X lifters for level 1 (97 mm). 6 walls |
 | `lid_frame` | 1 | Sits on the top rail tongues |
 | `motor_bracket` | 1 | Roll motor on the level 1 deck. Prints top face down |
 
@@ -52,14 +86,11 @@ PETG, 0.4 mm nozzle, 0.2 mm layers, 4 walls, 25 % gyroid unless noted. Every par
 
 | STL | Qty | Notes |
 | --- | --- | --- |
-| `deck_frame` | 1 | Tray side down, 244 × 115 mm |
-| `end_plate_drive` | 1 | −X end: bearing seats, round deck-pin holes |
-| `end_plate_cap` | 1 | +X end: bearing seats, slotted deck-pin holes, domed bottle stops |
+| `deck` | 1 | Tray side down, 244 × 123 mm. End plates included: −X has round deck-pin holes, +X has slotted ones and the domed bottle stops |
 | `stop_bar_drive` | 1 | Drive-end bottle stop |
 | `stop_bar_centre` | 1 | Centre stop between the two bottles in each valley |
-| `drive_collar` | 4 | O-ring grooves G1 and G2, M3 grub screw |
-| `end_collar` | 4 | Spacer at the cap end |
-| `roller_core` | 8 | 12 mm core under the silicone sleeve, 2 per roller, standing on end |
+| `roller_drive` | 4 | Drive half of each roller: 12 mm core with the O-ring groove collar (G1, G2, M3 grub). 118.5 mm, standing on the core end. Use a brim |
+| `roller_cap` | 4 | Cap half of each roller: 12 mm core with the end spacer. 108.5 mm, standing on the core end. Use a brim |
 | `double_pulley` | 1 | GT2 20T × 2 on roller 2 (V1 and V2), 0.12 mm layers |
 | `belt_guard` | 1 | Levels 1 and 2 only (not the top level) |
 
@@ -81,13 +112,14 @@ PETG, 0.4 mm nozzle, 0.2 mm layers, 4 walls, 25 % gyroid unless noted. Every par
 | M5 × 20 bolt + nut + 2 washers | Crank pins | 2 |
 | M4 × 20 SHCS + nut | Deck pins | 4 per level |
 | M3 grub screw + nut | Collars, pulleys, crank arms | 4 per level + 1 per level (pulley) + 3 |
-| M3 countersunk × 8 to 12 | Deck to end plates, lifter laps, lid | ~6 per level + 8 per lap joint |
+| M3 countersunk × 8 to 12 | Lifter laps, lid | 8 per lap joint + 6 |
 | M3 × 30 + nut | Rail stacking joints (cross bolts) | 4 per level + 4 |
-| M3 × 8 to 16 | Stop bars, bracket, guard, beam to lifters, panel, PCB | ~30 |
+| M3 × 8 to 16 | Stop bars, bracket, guard, PCB | ~18 |
+| M2 × 6 + nut | OLED in the front wall | 4 |
 | GT2 6 mm closed loop, 158 mm | Rock drive (motor 20T to 60T) | 1 |
 | GT2 6 mm closed loop, 158 mm | Roll motor 20T to roller 2 (level 1) | 1 |
 | GT2 6 mm closed loop, 220 mm | Roller 2 to roller 2 between levels | 1 per added level |
-| Silicone tube 12 × 16 mm, 198 mm | Roller sleeves | 4 per level |
+| Silicone tube 12 × 16 mm, 195 mm | Roller sleeves | 4 per level |
 | NBR O-ring 28 × 3 mm | Roller chain | 3 per level |
 
 ## What changed from the design doc
@@ -108,5 +140,7 @@ Turning the concept into parts moved some numbers. Everything is a parameter, so
 - The crank arms are set exactly 180° apart with their grub screws. File a small flat on the shaft for each grub.
 - Lifter segments overlap by 20 mm. The upper segment has slotted holes: slide it up until the GT2 belt between levels is snug, then tighten the countersunk M3s.
 - Rails stack with a tongue in a notch and one M3 × 30 bolt across each joint. The lid frame just sits on the top tongues.
+- Fit the rollers before the stop bars. Press the 8 bearings into the end-plate seats from inside the tray, sleeve the cores, lay each roller's two halves in place (drive half at −X), then push the rod in from outside through the −X bearing, both halves and the +X bearing. Tighten the collar grub, then screw on the stop bars.
+- The yoke + lifter U drops in from above through the lid slots. Fit the crank-pin bearing in its slot and push the M5 bolt through the crank arm.
 - The deck pins are M4 bolts locked to the lifter with a nut. They turn freely in the end-plate bosses. The cap-end holes are slots, because the pin spacing changes as the deck tilts.
-- Check the endstop post, the DC jack hole (11.2 mm), the USB slot position and the front-panel cutouts against your actual parts before printing the base shell. Their positions are parameters near the top of the base section.
+- Check the endstop post, the DC jack hole (11.2 mm), the USB slot position and the OLED, encoder and button holes against your actual parts before printing the base shell. Their positions are parameters near the top of the base section.
