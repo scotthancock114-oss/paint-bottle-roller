@@ -8,6 +8,9 @@
 // the level 1 lifters are part of the yoke beams, and the front panel is part
 // of the base shell.
 //
+// Revision 4 chamfers the outer edges (45 degrees, so bed edges print without
+// supports) and adds 0.4 mm elephant-foot relief to every part's bed face.
+//
 // Every printed part is modelled in its assembled position in one global
 // frame, and print_part() turns it onto the print bed.
 //   X = bottle axis (caps toward +X, drive end at -X)
@@ -126,6 +129,72 @@ module zcyl(x, y, z0, z1, d, fn=64)
 
 module hexagon(af, h) cylinder(d=af/cos(30), h=h, $fn=6);
 
+// ----------------------------------------------------------------- chamfers
+// Revision 4 breaks the outer edges with 45 degree chamfers. A chamfer on a
+// bed-facing edge is a 45 degree overhang, so it prints cleanly and also acts
+// as elephant-foot relief. Fit faces, bearing seats, bores and lap faces are
+// left sharp.
+bed_relief = 0.4;   // extra 45 degree relief on every bed edge (2 layers at 0.2 mm)
+
+// Box with all 12 edges chamfered by c.
+module cbox(x0, x1, y0, y1, z0, z1, c)
+    hull() {
+        box(x0, x1, y0+c, y1-c, z0+c, z1-c);
+        box(x0+c, x1-c, y0, y1, z0+c, z1-c);
+        box(x0+c, x1-c, y0+c, y1-c, z0, z1);
+    }
+// Box with only its top edges chamfered (lead-in on a tongue).
+module tbox(x0, x1, y0, y1, z0, z1, c)
+    hull() {
+        box(x0, x1, y0, y1, z0, z1-c);
+        box(x0+c, x1-c, y0+c, y1-c, z0, z1);
+    }
+// Rounded box (vertical corner radius r) with a cb chamfer round the bottom
+// edge and a ct chamfer round the top edge.
+module crbox(x0, x1, y0, y1, z0, z1, r, cb, ct)
+    hull() {
+        if (cb > 0) rbox(x0+cb, x1-cb, y0+cb, y1-cb, z0, z0+0.01, r-cb);
+        rbox(x0, x1, y0, y1, z0+cb, z1-ct, r);
+        if (ct > 0) rbox(x0+ct, x1-ct, y0+ct, y1-ct, z1-0.01, z1, r-ct);
+    }
+// Disc along X with both faces chamfered by c.
+module cxcyl(x0, x1, y, z, d, c, fn=64)
+    hull() {
+        xcyl(x0, x1, y, z, d-2*c, fn);
+        xcyl(x0+c, x1-c, y, z, d, fn);
+    }
+// Bar along Z with a chamfered rectangular section. f = which corners to
+// chamfer, in the order [x0y0, x1y0, x1y1, x0y1].
+module cbar_z(x0, x1, y0, y1, z0, z1, c, f=[1,1,1,1])
+    translate([0, 0, z0]) linear_extrude(z1-z0) polygon([
+        [x0 + f[0]*c, y0], [x1 - f[1]*c, y0], [x1, y0 + f[1]*c], [x1, y1 - f[2]*c],
+        [x1 - f[2]*c, y1], [x0 + f[3]*c, y1], [x0, y1 - f[3]*c], [x0, y0 + f[0]*c]]);
+
+// Edge cutters: remove a 45 degree chamfer c from the edge at the given corner.
+// (sa, sb) = +1/-1, the directions from the edge into the material.
+module chamfer_pts(a, b, sa, sb, c)
+    polygon([[a + sa*c, b - sb], [a + sa*c, b], [a, b + sb*c], [a - sa, b + sb*c], [a - sa, b - sb]]);
+module cham_x(x0, x1, y, z, sy, sz, c)          // edge along X at (y, z)
+    translate([min(x0,x1), 0, 0]) rotate([90,0,90]) linear_extrude(abs(x1-x0)) chamfer_pts(y, z, sy, sz, c);
+module cham_y(y0, y1, x, z, sx, sz, c)          // edge along Y at (x, z)
+    translate([0, max(y0,y1), 0]) rotate([90,0,0]) linear_extrude(abs(y1-y0)) chamfer_pts(x, z, sx, sz, c);
+module cham_z(z0, z1, x, y, sx, sy, c)          // edge along Z at (x, y)
+    translate([0, 0, min(z0,z1)]) linear_extrude(abs(z1-z0)) chamfer_pts(x, y, sx, sy, c);
+
+// Elephant-foot relief for a part already turned onto the bed: the bottom
+// bed_relief mm of its footprint is stepped in by 45 degrees, one layer at a time.
+module bed_chamfer(c=bed_relief, step=0.2) {
+    n = round(c/step);
+    difference() {
+        children();
+        if (n > 0) for (i = [0:n-1]) translate([0, 0, i*step - 0.01]) linear_extrude(step + 0.01)
+            difference() {
+                square(600, center=true);
+                offset(delta=-(c - i*step)) projection(cut=true) translate([0, 0, -0.1]) children();
+            }
+    }
+}
+
 // Domed bumper on a face at x = xf pointing in direction dir (+1/-1)
 module dome(xf, y, z, dir)
     intersection() {
@@ -181,7 +250,7 @@ module base_shell() {
     difference() {
         union() {
             difference() {
-                rbox(-hb, hb, -wb, wb, 0, shell_h, 6);
+                crbox(-hb, hb, -wb, wb, 0, shell_h, 6, 1.5, 1);
                 rbox(-hb+wall, hb-wall, -wb+wall, wb-wall, floor_t, shell_h+1, 3);
             }
             // crank towers: 8 mm thick, wide tapered foot
@@ -225,22 +294,21 @@ module base_shell() {
 }
 
 // Stacking tongue (on top of the base lid and of every rail) and its cross bolt.
-module tongue_block(z0)
-    box(lift_x-fl_in+0.3, lift_x+fl_in-0.3, back_y0+0.3, back_y1, z0, z0+tongue);
+module tongue_block(z0)                   // 0.8 mm lead-in round the top
+    tbox(lift_x-fl_in+0.3, lift_x+fl_in-0.3, back_y0+0.3, back_y1, z0, z0+tongue, 0.8);
 module cross_bolt(z)                       // M3 x 30 along X through rail, tongue, rail
     xcyl(lift_x-fl_out-1, lift_x+fl_out+1, bolt_y, z, m3_clr, 24);
 
 module base_lid() {
     difference() {
         union() {
-            rbox(-hb, hb, -wb, wb, shell_h, base_h, 6);
+            crbox(-hb, hb, -wb, wb, shell_h, base_h, 6, 1, 2);
             for (mx = [0,1], my = [0,1]) mirror([mx,0,0]) mirror([0,my,0]) tongue_block(base_h-1);
         }
         for (s = [-1,1]) {
-            box(s*87, s*101.75, -36, 36, shell_h-1, base_h+1);                         // crank arm + flag
-            box(s*101.75, s*(lift_x+7.25), -36, 36, shell_h-1, base_h+1);              // yoke beam
-            box(s*(lift_x-7.25), s*(lift_x+7.25), -(lift_y+lifter_t+0.2), lift_y+lifter_t+0.2,
-                shell_h-1, base_h+1);                                                  // lifters
+            lid_slot(s*87, s*101.75, -36, 36);                                         // crank arm + flag
+            lid_slot(s*101.75, s*(lift_x+7.25), -36, 36);                              // yoke beam
+            lid_slot(s*(lift_x-7.25), s*(lift_x+7.25), -(lift_y+lifter_t+0.2), lift_y+lifter_t+0.2); // lifters
         }
         box(-82, -58, -22, 22, shell_h-1, shell_h+2);                // 60T pulley pocket
         zcyl(-85, -50, shell_h-1, base_h+1, 12);                     // roll motor cable
@@ -251,6 +319,13 @@ module base_lid() {
         for (mx = [0,1], my = [0,1]) mirror([mx,0,0]) mirror([0,my,0]) cross_bolt(base_h+5);
     }
 }
+
+// Slot through the lid with a 1 mm lead-in chamfer round its top edge.
+module lid_slot(x0, x1, y0, y1)
+    hull() {
+        box(x0, x1, y0, y1, shell_h-1, base_h-1);
+        box(min(x0,x1)-2, max(x0,x1)+2, y0-2, y1+2, base_h+1, base_h+1.01);
+    }
 
 // Controls, cut straight into the 4 mm front wall of the base shell (there is
 // no separate front panel). The OLED, encoder and button mount from inside.
@@ -267,7 +342,7 @@ module crank_arm(s, phi) {
     mirror([s < 0 ? 1 : 0, 0, 0]) translate([0, 0, crank_z]) rotate([phi,0,0])
     difference() {
         union() {
-            hull() { xcyl(lift_x-21, lift_x-9, 0, 0, 18); xcyl(lift_x-15, lift_x-9, crank_r, 0, 15); }
+            hull() { cxcyl(lift_x-21, lift_x-9, 0, 0, 18, 1); cxcyl(lift_x-15, lift_x-9, crank_r, 0, 15, 1); }
             xcyl(tower_x+3.5, lift_x-20.9, 0, 0, 8);                              // race boss
             if (s > 0) hull() {                                                   // home flag
                 xcyl(lift_x-21, lift_x-9, 0, 0, 10);
@@ -289,8 +364,8 @@ module yoke_beam(s, z_off=0, screws=true) {
     mirror([s < 0 ? 1 : 0, 0, 0]) translate([0, 0, crank_z + z_off])
     difference() {
         union() {
-            box(lift_x-8, lift_x+7, -33, 33, -beam_h/2, beam_h/2);
-            box(lift_x-7, lift_x+7, -(lift_y+lifter_t), lift_y+lifter_t, -beam_h/2, beam_h/2);
+            cbox(lift_x-8, lift_x+7, -33, 33, -beam_h/2, beam_h/2, 1);
+            cbox(lift_x-7, lift_x+7, -(lift_y+lifter_t), lift_y+lifter_t, -beam_h/2, beam_h/2, 1);
         }
         box(lift_x-9, lift_x+8, -(crank_r+slot_h/2), crank_r+slot_h/2, -slot_h/2, slot_h/2);
         if (screws) for (sy = [-1,1], dx = [-3.5,3.5]) {
@@ -333,6 +408,8 @@ module rail_seg(len, z0=0) {
         box(lift_x-fl_in, lift_x+fl_in, back_y0-0.01, back_y1+1, -1, tongue+0.5); // notch
         cross_bolt(5);
         cross_bolt(len+5);
+        cham_z(-1, len+1, lift_x-fl_out, lift_y,  1, 1, 1);           // flange tips
+        cham_z(-1, len+1, lift_x+fl_out, lift_y, -1, 1, 1);
         for (sx = [-1,1]) translate([lift_x+sx*(fl_out+0.01), bolt_y, 5]) rotate([0, sx*90, 0])
             translate([0,0,-2.5]) rotate([0,0,30]) hexagon(5.8, 3);        // nut / head pockets
     }
@@ -344,11 +421,11 @@ module lid_frame(z0) {
     translate([0, 0, z0]) difference() {
         union() {
             difference() {
-                rbox(-ox, ox, -oy, oy, 0, 8, 6);
+                crbox(-ox, ox, -oy, oy, 0, 8, 6, 1, 1.5);
                 rbox(-(lift_x-fl_out-0.5), lift_x-fl_out-0.5, -(lift_y+3), lift_y+3, -1, 9, 4);
             }
-            for (sx = [-1,1], sy = [-1,1])
-                box(sx*(lift_x-fl_out-0.5), sx*ox, sy*(lift_y-1), sy*oy, 0, 14);
+            for (mx = [0,1], my = [0,1]) mirror([mx,0,0]) mirror([0,my,0])   // corner blocks
+                crbox(lift_x-fl_out-0.5, ox, lift_y-1, oy, 0, 14, 6, 1, 1.5);
         }
         for (mx = [0,1], my = [0,1]) mirror([mx,0,0]) mirror([0,my,0]) {
             box(lift_x-fl_in, lift_x+fl_in, back_y0, back_y1+0.3, -1, tongue+0.5);
@@ -376,12 +453,13 @@ module lap_slot(zs) for (z = zs) {                                    // tongue:
     hull() for (d = [-4,4]) translate([0, lifter_t-3, z+d]) rotate([-90,0,0]) rotate([0,0,30]) hexagon(5.8, 4);
 }
 hw = lifter_w/2;
+lc = 1;            // chamfer on the lifter's long edges (clears the rail's inside corners)
 module lifter_std() {
     difference() {
         union() {
-            box(-hw, hw, lifter_t/2, lifter_t, -lap, 0);
-            box(-hw, hw, 0, lifter_t, 0, 90-lap);
-            box(-hw, hw, 0, lifter_t/2, 90-lap, 90);
+            cbar_z(-hw, hw, lifter_t/2, lifter_t, -lap, 0.01, lc, [0,0,1,1]);   // lap faces stay sharp
+            cbar_z(-hw, hw, 0, lifter_t, 0, 90-lap, lc);
+            cbar_z(-hw, hw, 0, lifter_t/2, 90-lap-0.01, 90, lc, [1,1,0,0]);
         }
         lifter_pin(seg_pin);
         lap_csk([90-15, 90-5]);
@@ -392,8 +470,8 @@ module lifter_L1(s, screws=true) {   // s = +1 cap end (longer), -1 drive end
     len = L1_len + s*bias;
     difference() {
         union() {
-            box(-hw, hw, 0, lifter_t, screws ? 0 : -1, len-lap);
-            box(-hw, hw, 0, lifter_t/2, len-lap, len);
+            cbar_z(-hw, hw, 0, lifter_t, screws ? 0 : -1, len-lap, lc);
+            cbar_z(-hw, hw, 0, lifter_t/2, len-lap-0.01, len, lc, [1,1,0,0]);
             if (!screws) gusset_yz(0, 0, -8, 8, -hw, hw);             // fillet onto the beam
         }
         lifter_pin(len - 24);
@@ -419,9 +497,9 @@ module deck_frame() {
     difference() {
         union() {
             box(-hx, hx, -hy, hy, 0, deck_floor);
-            box(-(boss_x0-0.5), boss_x0-0.5, hy-back_t, hy, 0, back_top);         // back wall
+            box(-(boss_x0+0.5), boss_x0+0.5, hy-back_t, hy, 0, back_top);         // back wall (now runs into the bosses)
             gusset_yz(hy-back_t, deck_floor, -4, 4, -(boss_x0-0.5), boss_x0-0.5); // its fillet
-            box(-(boss_x0-0.5), boss_x0-0.5, hy-back_t-1, hy, back_top-5, back_top); // top bead
+            box(-(boss_x0+0.5), boss_x0+0.5, hy-back_t-1, hy, back_top-5, back_top); // top bead
             for (x = [-60, 0, 60]) gusset_yz(hy-0.01, deck_floor-0.01, 8, back_top-6, x-2.5, x+2.5); // buttresses
             box(-90, 90, hy-0.01, hy+8, 0, deck_floor);                           // buttress foot strip
             box(-x_in, x_in, -hy, -hy+lip_t, 0, lip_h);                           // front lip
@@ -437,6 +515,35 @@ module deck_frame() {
             ycyl(xb, hy-back_t-2, hy+1, 30, m3_clr, 24);                    // bar, back screw
             zcyl(xb, -hy+lip_t/2, bar_z0-12, bar_z0+1, m3_tap, 24);         // bar, front screw
         }
+        deck_chamfers();
+    }
+}
+
+// Outer edges of the deck. The bearing seats, pin bosses' bores, stop-bar
+// posts and the bracket face on the -X end plate are left as they are.
+module deck_chamfers() {
+    for (s = [-1,1]) {
+        cham_y(-hy-1, hy+1, s*hx, plate_top, -s, -1, 2);                    // end plate, top outer
+        cham_y(-boss_y0, boss_y0, s*x_in, plate_top, s, -1, 1);             // end plate, top inner
+        for (sy = [-1,1]) {
+            cham_y(sy*boss_y0, sy*(sy > 0 ? hy-back_t-1 : hy+1), s*boss_x0, plate_top, s, -1, 1); // boss, top inner
+            cham_x(s*boss_x0, s*x_in, sy*boss_y0, plate_top, sy, -1, 1);
+            cham_x(s*(boss_x0+0.5), s*(hx+1), sy*hy, plate_top, -sy, -1, 1.5); // boss, top outer
+            cham_z(-1, plate_top+1, s*hx, sy*hy, -s, -sy, 2);               // end plate corners
+        }
+        cham_y(-hy-1, hy+1, s*hx, 0, -s, 1, 1);                             // bed edge, ends
+        cham_z(plate_top, back_top+1, s*(boss_x0+0.5), hy, -s, -1, 1);      // back wall ends, above the bosses
+        cham_y(hy-back_t-2, hy+1, s*(boss_x0+0.5), back_top, -s, -1, 1);
+        cham_x(s*90, s*(hx+1), hy, 0, -1, 1, 1);                            // bed edge, back
+    }
+    cham_x(-hx-1, hx+1, -hy, 0, 1, 1, 1);                                   // bed edge, front
+    cham_x(-90, 90, hy+8, 0, -1, 1, 1);                                     // buttress foot strip
+    cham_x(-90, 90, hy+8, deck_floor, -1, -1, 1);
+    cham_x(-(boss_x0+0.5), boss_x0+0.5, hy, back_top, -1, -1, 1);           // back wall top
+    cham_x(-(boss_x0+0.5), boss_x0+0.5, hy-back_t-1, back_top, 1, -1, 1);
+    for (r = [[-81.5, 3.25], [23.25, x_in]]) {                            // front lip top, between posts
+        cham_x(r[0], r[1], -hy, lip_h, 1, -1, 1);
+        cham_x(r[0], r[1], -hy+lip_t, lip_h, -1, -1, 1);
     }
 }
 
@@ -485,6 +592,11 @@ module stop_bar(xc, both) {
         zcyl(xc, -hy+lip_t/2, bar_z0-1, bar_z1+1, m3_clr, 24);
         zcyl(xc, -hy+lip_t/2, bar_z1-3, bar_z1+1, 6.2, 24);
         ycyl(xc, hy-back_t-12, hy, 30, m3_tap, 24);
+        for (sx = [-1,1]) {                                                 // the back end butts the wall: left sharp
+            cham_y(-hy-1, hy, xc+sx*bar_w/2, bar_z1, -sx, -1, 1);           // top edges
+            cham_z(bar_z0-1, bar_z1+1, xc+sx*bar_w/2, -hy, -sx, 1, 1);      // front corners
+        }
+        cham_x(xc-bar_w, xc+bar_w, -hy, bar_z1, 1, -1, 1);
     }
 }
 
@@ -529,7 +641,7 @@ module roller_drive_local() {
     difference() {
         union() {
             core_local();
-            translate([0, 0, core_len + 0.2 - 3.5]) cylinder(d1=12, d2=19, h=3.5); // under the flange
+            translate([0, 0, core_len + 0.2 - 3.5]) cylinder(d1=12, d2=19, h=3.52); // under the flange (overlaps it slightly so the mesh is closed)
             translate([0, 0, core_len + drive_len + 0.2]) mirror([0,0,1]) drive_collar_local();
         }
         translate([0,0,-1]) cylinder(d=bore, h=core_len + drive_len + 2, $fn=32);
@@ -587,6 +699,19 @@ module motor_bracket() {
         hull() for (d = [-3,3]) xcyl(mf-1, mf+7, motor_y+d, roller_z, 23);
         for (a = [-1,1], b = [-1,1]) hull() for (d = [-3,3])
             xcyl(mf-1, mf+7, motor_y+a*15.5+d, roller_z+b*15.5, m3_clr, 24);
+        // outer edges, 1.5 mm (the faces against the motor and the end plate stay flat)
+        mz0 = roller_z-21;
+        for (y = [[mp0, 1], [mp1, -1]]) {
+            cham_z(mz0-1, plate_top+1, mf, y[0], 1, y[1], 1.5);
+            cham_z(mz0-1, plate_top+1, mf+6, y[0], -1, y[1], 1.5);
+            cham_x(mf-1, mf+7, y[0], mz0, y[1], 1, 1.5);
+        }
+        cham_y(mp0-1, mp1+1, mf, mz0, 1, 1, 1.5);
+        cham_y(mp0-1, mp1+1, mf+6, mz0, -1, 1, 1.5);
+        cham_x(mf+6, -hx+1, hy, deck_floor, -1, 1, 1.5);                     // side web
+        cham_x(mf+6, -hx-6, 22, plate_top-9, 1, 1, 1.5);                     // top arm
+        cham_x(-hx-6, -hx+1, 22, deck_floor, 1, 1, 1.5);                     // mount plate
+        cham_z(deck_floor-1, plate_top-9, -hx-6, 22, 1, 1, 1.5);
     }
 }
 
@@ -607,6 +732,11 @@ module belt_guard() {
             xcyl(-hx-7, -hx+1, y, 32, m3_clr, 24);
             xcyl(gb-4, -hx-3, y, 32, 6.5, 24);                                // head access
         }
+        for (y = [[gy0, 1], [gy1, -1]]) {                                     // outer edges, 1 mm
+            cham_z(7, 101, gb-3, y[0], 1, y[1], 1);
+            cham_x(gb-4, -hx-5, y[0], 100, y[1], -1, 1);
+        }
+        cham_y(gy0-1, gy1+1, gb-3, 100, 1, -1, 1);
     }
 }
 
@@ -665,4 +795,4 @@ module print_part(p) {
     else if (p == "fit_test") fit_test();
 }
 
-if (part != "none") print_part(part);
+if (part != "none") bed_chamfer() print_part(part);

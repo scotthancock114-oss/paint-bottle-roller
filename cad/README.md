@@ -62,6 +62,29 @@ This revision also fixes a clash from revision 2: roller 1's drive collar ran 0.
 
 **This CAD hasn't been test printed.** Print `fit_test.stl` first, set the fit parameters from it, and re-export before printing the big parts.
 
+## Chamfered edges (revision 4)
+
+![Deck end plate and back wall with the new chamfers](chamfer_detail.png)
+
+Revision 4 breaks the outer edges with 45° chamfers. Nothing that mates, slides or holds a bearing was changed, and every part keeps its size and print orientation.
+
+- **Every part** gets a 0.4 mm, 45° elephant-foot relief round its bed face (two 0.2 mm layers, from `bed_chamfer()` in `print_part`). Holes that open onto the bed get the same small lead-in. Keep the slicer's own elephant-foot compensation low (0 to 0.1 mm) so the two don't add up.
+- **Base shell:** 1.5 mm chamfer round the bottom, 1 mm round the top. **Base lid:** 1 mm round the bottom, 2 mm round the top. The two 1 mm chamfers make a small V reveal at the seam, which hides any mismatch. The lid's crank, yoke and lifter slots have a 1 mm lead-in on top, so the yoke U drops in more easily.
+- **Stacking tongues** (on the lid and on every rail) have a 0.8 mm lead-in round the top, so the next rail starts on more easily.
+- **Rails:** 1 mm chamfers on the outer tips of both flanges. The back already had 2 mm chamfers.
+- **Lifters** (and the lifters on the yoke U): 1 mm chamfers on the four long edges. This also clears the inside corners of the rail channel. The lap faces stay sharp.
+- **Yoke beam:** 1 mm on all edges.
+- **Crank arms:** 1 mm on both faces of the lobe. The race boss stays sharp because it bears on the bearing's inner race.
+- **Deck:** 2 mm on the top outer edges and outer corners of both end plates, 1.5 mm on the outer top of the pin bosses, 1 mm on the inner top edges, the back wall and bead, the front lip top (between the stop-bar posts) and round the bed edge. The bearing seats, pin bores, the stop-bar post tops and the -X end plate face where the bracket and belt guard bolt on stay sharp. The back wall now runs into the pin bosses; before, it stopped 0.5 mm short and left a thin slit at each end.
+- **Stop bars:** 1 mm on the top edges and the front corners. The back end, which butts the back wall, stays square.
+- **Motor bracket:** 1.5 mm on the motor plate, side web, top arm and mount plate edges. The faces against the motor and the end plate stay flat.
+- **Belt guard:** 1 mm on its outer corners and top edges.
+- **Lid frame:** 1 mm round the bottom, 1.5 mm round the top, and the corner blocks are rounded to match the ring.
+
+Not chamfered: the rollers (their ends were already chamfered 0.5 mm), the GT2 pulleys and `fit_test`, which only gets the bed relief so it still measures what the real parts will be.
+
+This revision also closes a gap in the `roller_drive` mesh, where the cone under the collar flange met the flange on the same plane. It was 194 loose pieces before and is now one solid.
+
 ## Print list
 
 PETG, 0.4 mm nozzle, 0.2 mm layers, 4 walls, 25 % gyroid unless noted. Every part fits a 256 × 256 mm bed (the largest is the 250 × 160 mm base shell). No part needs supports.
